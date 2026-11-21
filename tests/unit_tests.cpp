@@ -189,6 +189,68 @@ static void testRules() {
   CHECK(!legal(p).count("8h8f") && legal(p).count("8h8j") && !legal(p).count("8h8k"));
 }
 
+// 先獅子 variants: which lions the ban protects.
+static void testCounterStrike() {
+  struct Case {
+    const char* what;
+    const char* sfen;
+    const char* move;
+    bool all, lishogi, jcsa;  // legal under each variant
+  };
+  const Case cases[] = {
+      // A kirin took a lion on 8f and promoted; Gote's rook strikes back there.
+      {"capture square, undefended", "14ki/7ro7/15/15/15/7+KR7/15/15/15/15/15/15/15/15/KI14 w 8f 1",
+       "8b8f", false, true, true},
+      {"capture square, defended", "14ki/7ro7/15/15/15/7+KR7/7GO7/15/15/15/15/15/15/15/KI14 w 8f 1",
+       "8b8f", false, true, false},
+      // A rook took a lion on 3c; another lion stands on 8f.
+      {"other square, undefended", "14ki/7ro7/12RO2/15/15/7LI7/15/15/15/15/15/15/15/15/KI14 w 3c 1",
+       "8b8f", false, false, true},
+      {"other square, defended", "14ki/7ro7/12RO2/15/15/7LI7/7GO7/15/15/15/15/15/15/15/KI14 w 3c 1",
+       "8b8f", false, false, false},
+      // Defended from a distance (rook on 8n), and through the capturer
+      // itself: Sente's rook on 8a sees 8f once Gote's rook leaves 8b.
+      {"defended from a distance", "14ki/7ro7/12RO2/15/15/7LI7/15/15/15/15/15/15/15/7RO7/KI14 w 3c 1",
+       "8b8f", false, false, false},
+      {"x-ray through the capturer", "7RO6ki/7ro7/12RO2/15/15/7LI7/15/15/15/15/15/15/15/15/KI14 w 3c 1",
+       "8b8f", false, false, false},
+      // Falcon: the first step takes a lion on 8g, the second one on 8f.
+      {"falcon, second lion undefended", "14ki/15/15/15/15/7li7/7li7/7+DH7/15/15/15/15/15/15/KI14 b - 1",
+       "8h8g8f", false, false, true},
+      {"falcon, second lion defended", "14ki/15/15/15/7go7/7li7/7li7/7+DH7/15/15/15/15/15/15/KI14 b - 1",
+       "8h8g8f", false, false, false},
+      // Lions are never restricted; the ban is off without a capture.
+      {"no capture before", "14ki/7ro7/15/15/15/7LI7/15/15/15/15/15/15/15/15/KI14 w - 1",
+       "8b8f", true, true, true},
+  };
+  const CounterStrike saved = counterStrike();
+  for (CounterStrike r : {CounterStrike::All, CounterStrike::Lishogi, CounterStrike::Jcsa}) {
+    setCounterStrike(r);
+    for (const Case& c : cases) {
+      const bool want = r == CounterStrike::All ? c.all : r == CounterStrike::Lishogi ? c.lishogi : c.jcsa;
+      const bool got = legal(sfen(c.sfen)).count(c.move) > 0;
+      if (got != want)
+        std::printf("counter-strike %s, %s: %s %s\n", counterStrikeName(r), c.what, c.move,
+                    got ? "legal" : "illegal");
+      CHECK(got == want);
+    }
+    // Lishogi: the capture square is part of the state (repetition, keys).
+    Position a = sfen("14ki/7ro7/12RO2/15/15/7+KR7/15/15/15/15/15/15/15/15/KI14 w 3c 1");
+    Position b = a;
+    b.lionCapture = static_cast<int16_t>(makeSq(7, 5));  // 8f
+    const bool exact = r == CounterStrike::Lishogi;
+    CHECK(a.sameState(b) == !exact && (a.key() == b.key()) == !exact);
+    const bool jcsa = r == CounterStrike::Jcsa;  // the +KR is undefended
+    CHECK(legal(a).count("8b8f") == (jcsa ? 1u : 0u) &&
+          legal(b).count("8b8f") == (exact || jcsa ? 1u : 0u));
+  }
+  CounterStrike parsed;
+  CHECK(parseCounterStrike("jcsa", parsed) && parsed == CounterStrike::Jcsa);
+  CHECK(!parseCounterStrike("JCSA", parsed));
+  CHECK(std::string(counterStrikeName(CounterStrike::Lishogi)) == "lishogi");
+  setCounterStrike(saved);
+}
+
 static void testGame() {
   // Taking the king does not end the game while the prince lives.
   Position p = sfen("14si/15/15/15/7+de6pa/15/7ki7/7LI7/15/15/15/15/15/15/KI14 b - 1");
@@ -380,6 +442,7 @@ int main() {
   testStartPosition();
   testPerft();
   testRules();
+  testCounterStrike();
   testGame();
   testFlip();
   if (failures) {

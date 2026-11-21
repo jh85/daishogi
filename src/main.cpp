@@ -7,6 +7,9 @@
 //                   [--quiet] [--show]               random vs random
 //   daishogi batch                                   line protocol on stdin
 //
+// Any command also takes --counter-strike all|lishogi|jcsa: the 先獅子
+// variant (default: all, the haitaka-variants rule; see docs/RULES.md).
+//
 // See README.md and docs/FORMAT.md.
 
 #include <chrono>
@@ -351,7 +354,20 @@ void usage() {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::vector<std::string> args(argv + 1, argv + argc);
+  std::vector<std::string> args;
+  for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--counter-strike") {
+      CounterStrike r;
+      if (i + 1 >= argc || !parseCounterStrike(argv[i + 1], r)) {
+        std::cerr << "--counter-strike must be all, lishogi or jcsa\n";
+        return 2;
+      }
+      setCounterStrike(r);
+      ++i;
+      continue;
+    }
+    args.push_back(argv[i]);
+  }
   if (args.empty()) {
     usage();
     return 2;

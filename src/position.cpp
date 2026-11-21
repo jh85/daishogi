@@ -8,6 +8,7 @@ struct Zobrist {
   uint64_t piece[kSquares][2 * KindCount + 1];
   uint64_t side;
   uint64_t lionCapture;
+  uint64_t lionSquare[kSquares];  // Lishogi variant: the square matters
   Zobrist() {
     uint64_t s = 0x2545f4914f6cdd1dULL;
     auto next = [&] {
@@ -21,6 +22,7 @@ struct Zobrist {
       for (auto& v : sq) v = next();
     side = next();
     lionCapture = next();
+    for (auto& z : lionSquare) z = next();
   }
 };
 
@@ -30,6 +32,29 @@ const Zobrist& zobrist() {
 }
 
 }  // namespace
+
+#ifndef DAI_COUNTER_STRIKE
+#define DAI_COUNTER_STRIKE 0
+#endif
+static_assert(DAI_COUNTER_STRIKE >= 0 && DAI_COUNTER_STRIKE <= 2,
+              "DAI_COUNTER_STRIKE must be 0 (all), 1 (lishogi) or 2 (jcsa)");
+CounterStrike gCounterStrike = static_cast<CounterStrike>(DAI_COUNTER_STRIKE);
+
+bool parseCounterStrike(const std::string& name, CounterStrike& out) {
+  if (name == "all") out = CounterStrike::All;
+  else if (name == "lishogi") out = CounterStrike::Lishogi;
+  else if (name == "jcsa") out = CounterStrike::Jcsa;
+  else return false;
+  return true;
+}
+
+const char* counterStrikeName(CounterStrike r) {
+  switch (r) {
+    case CounterStrike::Lishogi: return "lishogi";
+    case CounterStrike::Jcsa: return "jcsa";
+    default: return "all";
+  }
+}
 
 void Position::apply(const Move& m) {
   auto hop = [&](int a, int b) {
@@ -81,7 +106,8 @@ uint64_t Position::key() const {
   for (int s = 0; s < kSquares; ++s)
     if (board[s]) k ^= z.piece[s][board[s]];
   if (sideToMove == Gote) k ^= z.side;
-  if (lionCapture != kNoSquare) k ^= z.lionCapture;
+  if (lionCapture != kNoSquare)
+    k ^= counterStrike() == CounterStrike::Lishogi ? z.lionSquare[lionCapture] : z.lionCapture;
   return k;
 }
 

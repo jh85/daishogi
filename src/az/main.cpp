@@ -4,6 +4,9 @@
 // Ported from ../chushogi (src/az/main.cpp, commit d578c81). Left out for
 // now: the USI engine mode (usi_mode.*) and the root audit commands.
 //
+// Usage: daishogi-az [--counter-strike all|lishogi|jcsa]  (先獅子 variant;
+// self-play records name it), then commands on stdin:
+//
 //   selfplay --games N --sims S --batch B --seed K --out DIR
 //            [--temp-plies T] [--root-policy-temp X] [--eval random|pipe]
 //            [--port P] [--start startpos|position]
@@ -90,7 +93,17 @@ std::string usi(const dai::Move& m, bool flip) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc > 1) fatal(std::string("unknown argument: ") + argv[1]);
+  for (int i = 1; i < argc; ++i) {
+    dai::CounterStrike r;
+    if (std::string(argv[i]) == "--counter-strike" && i + 1 < argc &&
+        dai::parseCounterStrike(argv[i + 1], r)) {
+      dai::setCounterStrike(r);
+      ++i;
+    } else {
+      fatal(std::string("unknown argument: ") + argv[i] +
+            " (only --counter-strike all|lishogi|jcsa)");
+    }
+  }
   dai::Position start;
   if (!dai::parseSfen(dai::kStartSfen, start)) fatal("bad initial SFEN");
   dai::Game game(start);

@@ -159,6 +159,42 @@ falcon and soaring eagle are *not* lions, although they have lion power.
 The SFEN's third field records whether 先獅子 is active. It is set after
 every move from that move's **last** hop.
 
+### Counter-strike (先獅子) variants
+
+The rule above protects **every** lion. JCSA and lishogi use variants of it
+that protect fewer lions. Both are available for comparison with chu shogi.
+
+| Variant | `--counter-strike` | Protected while 先獅子 is on | Source |
+|---|---|---|---|
+| All (default) | `all` | every lion | haitaka-variants / Shogitter rule 49 |
+| Lishogi | `lishogi` | every lion except one on the square of the capture, i.e. a kirin that took the lion there and promoted | lishogi (`../chushogi`, `RuleSet::Lishogi`) |
+| JCSA | `jcsa` | only a defended lion (足のある獅子), judged with the capturer lifted so that x-rays through it count | JCSA 2019 regulations 七.四 (`../chushogi`, `RuleSet::JCSA`) |
+
+* **Runtime:** `daishogi --counter-strike NAME ...` and
+  `daishogi-az --counter-strike NAME` set the rule for the process.
+  Self-play records name it (`"counter_strike"`).
+* **Compile time:** `make clean && make COUNTER_STRIKE=lishogi` (or `jcsa`)
+  changes the default. The switch costs nothing measurable: perft 4
+  takes 2.48 s either way.
+* **The ban's other parts are the same in every variant.** Only the
+  protection condition changes:
+  * Lions are never restricted by it.
+  * The flag is set from the last hop.
+  * Falcon and eagle two-step moves are judged hop by hop (item 5 above).
+    A falcon that takes a lion on its first step may take a second lion
+    on its second step only if the variant leaves that lion unprotected,
+    i.e. under JCSA, when it is undefended.
+  * The chushogi engine's lishogi rules differ in one more point, which
+    is not reproduced here: they check only the destination of a falcon
+    or eagle double move against the ban, so the mid step may take a
+    protected lion.
+* **Repetition:** under `lishogi` the exact capture square changes which
+  moves are legal, so it becomes part of the position for the repetition
+  rule (`Position::sameState`, `key`).
+* **On the reference corpus,** `lishogi` adds legal moves in 7 of 14,251
+  positions and `jcsa` in 125. Neither ever removes one. `make test`
+  checks the default only.
+
 ## Game end
 
 * **Royal capture**: the king and prince are royal. A player who captures

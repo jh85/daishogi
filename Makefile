@@ -1,6 +1,18 @@
 CXX ?= g++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic
 
+# 先獅子 variant compiled in as the default: all | lishogi | jcsa (see
+# docs/RULES.md; the binaries' --counter-strike overrides it). Run
+# `make clean` after changing it.
+COUNTER_STRIKE ?= all
+CS_all := 0
+CS_lishogi := 1
+CS_jcsa := 2
+ifeq ($(CS_$(COUNTER_STRIKE)),)
+$(error COUNTER_STRIKE must be all, lishogi or jcsa)
+endif
+CXXFLAGS += -DDAI_COUNTER_STRIKE=$(CS_$(COUNTER_STRIKE))
+
 SRC := src/types.cpp src/position.cpp src/notation.cpp src/movegen.cpp src/game.cpp src/mate.cpp
 HDR := src/types.h src/position.h src/notation.h src/movegen.h src/game.h src/mate.h
 BIN := daishogi

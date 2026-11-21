@@ -4,10 +4,27 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 
 #include "types.h"
 
 namespace dai {
+
+// 先獅子 (counter-strike) variants: which lions the ban protects after a
+// non-lion has taken a lion (docs/RULES.md, "Counter-strike variants").
+//   All      every lion (haitaka-variants / Shogitter; the default)
+//   Lishogi  every lion except one on the square of that capture (a kirin
+//            that took the lion there and promoted)
+//   Jcsa     only a lion that is defended (has a "foot")
+// The rule is process-wide: set it once at startup (setCounterStrike, or
+// the binaries' --counter-strike option). The compile-time default is
+// -DDAI_COUNTER_STRIKE=0|1|2 (All, Lishogi, Jcsa).
+enum class CounterStrike : uint8_t { All = 0, Lishogi = 1, Jcsa = 2 };
+extern CounterStrike gCounterStrike;
+inline CounterStrike counterStrike() { return gCounterStrike; }
+inline void setCounterStrike(CounterStrike r) { gCounterStrike = r; }
+bool parseCounterStrike(const std::string& name, CounterStrike& out);  // all|lishogi|jcsa
+const char* counterStrikeName(CounterStrike r);
 
 struct Position {
   std::array<Piece, kSquares> board{};  // 0 = empty
@@ -27,7 +44,8 @@ struct Position {
 
   int royals(Color c) const;
   // Zobrist key of everything that defines the game state: board, side to
-  // move and whether the lion-capture restriction is active.
+  // move and whether the lion-capture restriction is active (under the
+  // Lishogi variant, also its square, which then affects legal moves).
   uint64_t key() const;
 
   // The same position seen from the other side: the board rotated 180
@@ -35,10 +53,13 @@ struct Position {
   // every position to a neural network from the side to move's view.
   Position flipped() const;
 
-  // Same game state (moveNumber and the exact lion-capture square ignored).
+  // Same game state (moveNumber ignored; the exact lion-capture square
+  // only under the Lishogi variant).
   bool sameState(const Position& o) const {
     return board == o.board && sideToMove == o.sideToMove &&
-           (lionCapture != kNoSquare) == (o.lionCapture != kNoSquare);
+           (counterStrike() == CounterStrike::Lishogi
+                ? lionCapture == o.lionCapture
+                : (lionCapture != kNoSquare) == (o.lionCapture != kNoSquare));
   }
 };
 

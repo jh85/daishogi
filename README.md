@@ -38,7 +38,13 @@ make                # builds ./daishogi (needs g++ or clang++ with C++17)
 make daishogi-az    # AlphaZero self-play worker (see az/README.md)
 make az-test AZPY=~/venv/bin/python   # AlphaZero tests (NumPy + PyTorch)
 make mate-test      # mate solver vs brute force (~2 min)
+make COUNTER_STRIKE=jcsa   # another default 先獅子 variant (all | lishogi | jcsa); `make clean` first
 ```
+
+The 先獅子 rule follows haitaka-variants by default. The JCSA and lishogi
+variants protect fewer lions; select one at runtime with
+`daishogi --counter-strike jcsa ...` (also `daishogi-az`). See
+docs/RULES.md, "Counter-strike (先獅子) variants".
 
 `tools/refgen` is needed only to regenerate reference data. It needs Rust
 (`cargo`) and the `../haitaka-variants` checkout, which it uses unmodified:
@@ -55,8 +61,8 @@ make test           # unit tests + full comparison with the committed reference 
 
 `make test` runs three steps. None of them needs Rust.
 
-1. `tests/unit_tests`: 779 checks covering notation, the initial setup,
-   perft, rule examples and the side-to-move flip.
+1. `tests/unit_tests`: 815 checks covering notation, the initial setup,
+   perft, rule examples, the 先獅子 variants and the side-to-move flip.
 2. `tests/compare.py`: 14,251 reference positions with 1,716,277 reference
    moves (adjusted for the two deliberate differences above). For each
    position the complete legal-move sets must be identical.

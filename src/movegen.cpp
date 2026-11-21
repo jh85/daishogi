@@ -21,13 +21,28 @@ bool lionProtected(const Position& pos, int target, int vacant) {
   return attackedBy(pos, colorOf(pos.board[target]), target, vacant);
 }
 
+// 先獅子: after a non-lion took a lion (on `captured`), does the ban protect
+// the enemy lion on `to` from a non-lion moving from `from`? `pos` has that
+// piece still on `from`. All: every lion. Lishogi: not the lion on the
+// capture square. JCSA: only a defended lion, judged with the capturer
+// lifted (x-rays through it count). Lions are never restricted by it.
+bool counterStrikeProtects(const Position& pos, int captured, int from, int to) {
+  switch (counterStrike()) {
+    case CounterStrike::Lishogi: return to != captured;
+    case CounterStrike::Jcsa: return lionProtected(pos, to, from);
+    default: return true;
+  }
+}
+
 // Capture restrictions on the first (or only) hop from -> to.
 bool firstHopAllowed(const Position& pos, int from, int to) {
   const Piece victim = pos.board[to];
   if (!isLionPiece(victim)) return true;
   if (!isLionPiece(pos.board[from]))
-    // 先獅子: a non-lion may not take a lion right after a non-lion took one.
-    return pos.lionCapture == kNoSquare;
+    // 先獅子: a non-lion may not take a protected lion right after a
+    // non-lion took one.
+    return pos.lionCapture == kNoSquare ||
+           !counterStrikeProtects(pos, pos.lionCapture, from, to);
   // Lion takes lion: always when adjacent, otherwise only an unprotected one.
   return dist(from, to) == 1 || !lionProtected(pos, to, from);
 }
@@ -39,9 +54,16 @@ bool secondHopAllowed(const Position& pos, int from, int mid, int to) {
   const Piece victim = pos.board[to];
   if (!isLionPiece(victim)) return true;
   const Piece first = pos.board[mid];
-  if (!isLionPiece(pos.board[from]))
+  if (!isLionPiece(pos.board[from])) {
     // Falcon / eagle: the lion-capture state after the first hop decides.
-    return !isLionPiece(first);
+    if (!isLionPiece(first)) return true;
+    // The first hop took a lion on `mid`: 先獅子 is on, with the capturer
+    // standing there. (The Lishogi exemption can never apply: to != mid.)
+    Position after = pos;
+    after.board[mid] = pos.board[from];
+    after.board[from] = 0;
+    return !counterStrikeProtects(after, mid, mid, to);
+  }
   // Lion: a lion adjacent to the start square may always be taken, also on
   // the second step (lishogi / JCSA: adjacency is judged from where the
   // move starts). The reference applies this only to single steps; this is
