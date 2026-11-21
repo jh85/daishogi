@@ -1,0 +1,15 @@
+[package]
+name = "refgen"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Reference data generator for dai shogi, driving haitaka-variants (Shogitter rule 49)."
+
+[dependencies]
+haitaka = { path = "../../haitaka-variants/haitaka", default-features = false, features = ["daishogi"] }
+serde_json = "1"
+
+[workspace]
+
+[profile.release]
+debug = false

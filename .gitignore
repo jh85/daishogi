@@ -1,0 +1,21 @@
+# build outputs
+/daishogi
+/daishogi-az
+/tests/unit_tests
+/tests/mate_test
+/tests/az/*_test
+/tests/mismatches.jsonl
+/tools/refgen/target/
+__pycache__/
+
+# training runs (games, checkpoints; gigabytes)
+/az/data/
+
+# separate checkouts used as references (not part of this repository)
+/chushogi/
+/haitaka-variants/
+
+# local, not for publishing
+/github.txt
+/issue-drafts/
+/dai-shogi-coding-agent-prompt.md
