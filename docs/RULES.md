@@ -184,10 +184,20 @@ that protect fewer lions. Both are available for comparison with chu shogi.
     A falcon that takes a lion on its first step may take a second lion
     on its second step only if the variant leaves that lion unprotected,
     i.e. under JCSA, when it is undefended.
-  * The chushogi engine's lishogi rules differ in one more point, which
-    is not reproduced here: they check only the destination of a falcon
-    or eagle double move against the ban, so the mid step may take a
-    protected lion.
+  * Lishogi itself (scalashogi `Chushogi.scala` and `MoveActor.scala`,
+    commit c3886687ac) handles falcon and eagle double moves differently
+    from the reference, and so from every variant here:
+    * it checks both steps against the ban as it stood before the move;
+    * it sets the ban from the last step that took a lion, or else from
+      the mid step.
+
+    So, during the ban, a lion on the second step is protected even when
+    the first step took none. Without the ban, a falcon may take two
+    lions. Taking a lion on the first step and returning starts the ban.
+    `../chushogi`'s lishogi mode matches lishogi on all three points since
+    its commit ea6f874. That commit applied lishogi's fix fcf0664 ("Prevent
+    illegal lion recapture in midstep", 2026-10-23); before it, the mid step
+    could take a protected lion during the ban.
 * **Repetition:** under `lishogi` the exact capture square changes which
   moves are legal, so it becomes part of the position for the repetition
   rule (`Position::sameState`, `key`).
