@@ -47,6 +47,7 @@ struct GameRecord {
   uint64_t probes = 0, probeMates = 0, solverNodes = 0;
   std::string initialSfen;
   std::vector<std::string> moves;  // USI, original frame
+  std::string finalSfen;           // position at the end (material scoring of capped games)
   std::vector<Sample> samples;
   int result = 0;  // 1 = sente wins, -1 = gote wins, 0 = draw
   std::string reason;  // royals | nomoves | repetition | perpetual | plycap

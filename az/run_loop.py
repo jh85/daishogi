@@ -103,6 +103,10 @@ def main():
     ap.add_argument("--probe-nodes", type=int, default=2000)
     ap.add_argument("--sample-fraction", type=float, default=1.0,
                     help="passthrough to train.py")
+    ap.add_argument("--cap-score-max", type=float, default=0.0,
+                    help="passthrough to train.py: material scoring of capped games")
+    ap.add_argument("--cap-score-scale", type=float, default=0.1,
+                    help="passthrough to train.py")
     ap.add_argument("--train-lock", default="", help="shared file lock to serialize GPU training across branches")
     ap.add_argument("--stop-file", default="", help="finish the current iteration and stop when this file exists")
     ap.add_argument("--seed", type=int, default=1)
@@ -246,7 +250,9 @@ def main():
                    "--muon-warmup-steps", str(a.muon_warmup_steps),
                    "--d-model", str(a.d_model), "--blocks", str(a.blocks),
                    "--heads", str(a.heads), "--amp", a.amp,
-                   "--sample-fraction", str(a.sample_fraction)]
+                   "--sample-fraction", str(a.sample_fraction),
+                   "--cap-score-max", str(a.cap_score_max),
+                   "--cap-score-scale", str(a.cap_score_scale)]
             if a.lr_decay_steps:
                 cmd += ["--lr-decay-steps", str(a.lr_decay_steps)]
             if a.lr:

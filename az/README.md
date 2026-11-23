@@ -273,10 +273,94 @@ not, the options are:
   label only. That adds domain knowledge, and it is a design choice to
   make deliberately.
 
+**Outcome (stopped after iteration 86).** From iteration 4 on, 46–62 of
+each iteration's 64 games reached the cap. Capped games kept about 121 of
+the 130 pieces after 1,500 plies; random-vs-random games end by royal
+capture in 350–650 plies. The value target was "draw" almost everywhere
+(value loss about 0.1), so the search had no reason to attack. All strength
+tournaments (iterations 10–80) were draws by repetition, and so they show
+nothing. Against the random player, `iter_0049` scored 6.5/10 at 128
+simulations and 8/10 at 1,024, and drew all 16 games against the anchor
+at 1,024.
+
+### run4: capped games scored by material
+
+`az/data/run4` started from run3's last net with `--cap-score-max 0.5
+--cap-score-scale 0.1` and otherwise run3's command. Its 40 iterations used
+60 training steps each; it was resumed at iteration 46 with `--train-steps
+240`. A capped game is still a draw under the rules and in matches. Only its
+value target changes (`az/material.py`):
+
+    d = (material(Sente) - material(Gote)) / material of one side at the start
+    t = 0.5 * tanh(d / 0.1)        (Sente's view; Gote's is -t)
+    WDL target = [t, 1 - t, 0] if t >= 0 else [0, 1 + t, -t]
+
+Piece values are HaChu's dai shogi table (H.G. Muller's engine, `hachu.c`
+0.21): `daiPieces[]` for the eight dai-only pieces, `chuPieces[]` for the
+rest, with a promoted piece valued as the piece it becomes (lion 1000, free
+king 600, rook 300, gold 151, pawn 40). In run3's capped games the median
+gap is 4.5% of an army (t = 0.21), and 12.6% at the 90th percentile
+(t = 0.43). Self-play records now store the final position (`"final"`).
+Older records have none, so their capped games stay draws.
+
+After 40 iterations: 50 of 64 games capped per iteration (run3's last 20:
+55), 118.5 pieces left at the cap, value loss about 0.6. Against random
+(60 games at 128 simulations, seeds 41/51/52, `az/data/run4_eval`), the
+start net scored 45.5/60 with 31 royal captures and `iter_0040` scored
+42/60 with 24 (Fisher p = 0.27, so no measurable change). In the capped
+games against random, both nets ended about 45% of an army behind on
+material: the agent does not keep its pieces, while the random player
+captures and promotes freely.
+
+### Puzzle-training experiments
+
+`tools/puzzlegen` (`make tools/puzzlegen`) finds forced mates of at most 7
+plies, the royal capture included (a tsume 1-move mate is 3 plies). It
+lists every first move that keeps the shortest mate. With `--contrast` it
+lists positions that have a checking move but no such mate.
+
+`az/make_puzzles.py` makes puzzles from real self-play positions: it strips
+2–8 defenders within 3 squares of the defender's single royal and moves 2–5
+attackers to within 4 squares. About 0.7% of the candidates are genuine 3–7
+ply mates. With `--contrast CHECKPOINT` it writes contrast positions, labelled
+by a search of that net. `az/train.py --puzzle-dirs ... --puzzle-fraction F`
+mixes them into each batch, and `--puzzle-policy-weight 0` makes them
+value-only. `az/puzzle_eval.py` measures a raw net on a puzzle file.
+
+Real games contain almost no short mates. Only 2 of 3,000 positions from
+iterations 40–49 had a mate within 7 plies. The root solver plays nearly
+all of the mates that do occur: 97.7% were solved within its 5,000 nodes.
+
+A/B test (`az/data/puzzle_exp`): run3's `iter_0076` was fine-tuned for 540
+steps on iterations 77–85. Arm A had no puzzles. B had 10% puzzles with
+policy and value targets. C had 10% value-only puzzles. D was C plus 5%
+contrast positions. Each arm then played 60 games against random at 128
+simulations.
+
+| Arm | vs random | Royal captures | P(win), held-out puzzles | P(win), contrast (no mate) | Best move a check, contrast |
+|---|---|---|---|---|---|
+| A | 41.5/60 | 27 | 0.02 | 0.02 | 0.1% |
+| B | 50.5/60 | 41 (p = 0.016) | 0.97–0.99 | 0.97 | 51.5% |
+| C | 45.5/60 | 31 (p = 0.58) | 0.95–0.99 | 0.97 | 0.1% |
+| D | 40.5/60 | 27 | 0.49–0.68 | 0.35 | 0.1% |
+
+* Only the policy part helps against random. Value-only puzzles do not.
+* B and C call positions that merely look like puzzles won, whether or not a
+  mate exists. B also prefers checks there, with no mate to justify them.
+  In ordinary game positions, B's preference for checks only rises to the
+  search's own level: 1.8% of the policy on checks, against 1.7% in the
+  visit target and 0.8% for A.
+* Transfer to real mates from game endings is small for every arm.
+* B's gain may partly reflect the random opponent, which leaves its king
+  exposed and so creates puzzle-like positions. A defending opponent is
+  needed to tell.
+
 ## Open points
 
-1. **Draws at the game cap** (see "Training runs"). Watch the share of
-   capped games and the strength tournaments.
+1. **Draws at the game cap and material.** Is run4's material scoring,
+   with 240 training steps per iteration, enough? Compare with its start
+   net against random again (`az/data/run4_eval/cmp40.sh`, after changing
+   the checkpoint number).
 2. **Mate-solver settings.** run3 uses chushogi's 5000 / 3 / 2000. The
    probes cost no measurable self-play throughput (5.7k evaluations/s with
    the solver, 5.5k without; the CPU work hides behind the GPU), so a

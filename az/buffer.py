@@ -17,16 +17,23 @@ from pathlib import Path
 
 import numpy as np
 
+import material as MT
 import model as M
 
 
 class Buffer:
     def __init__(self, games_dirs, max_positions=1_000_000, skip_plies=4,
-                 sample_fraction=1.0):
+                 sample_fraction=1.0, cap_score_max=0.0,
+                 cap_score_scale=MT.DEFAULT_SCALE):
         """sample_fraction < 1 keeps that share of each game's positions,
         chosen by a hash of (file, ply) so the choice is stable across
         reloads. A game's ~1,000 positions share one result; training on all
-        of them lets the value head memorize games (see az/README.md)."""
+        of them lets the value head memorize games (see az/README.md).
+
+        cap_score_max > 0 scores games that hit the ply cap by material
+        (az/material.py): their z target becomes a partial win for the side
+        ahead, at most cap_score_max. Records without a final position
+        (written before it was recorded) stay draws."""
         if max_positions <= 0:
             raise ValueError("max_positions must be positive")
         if not 0 < sample_fraction <= 1:
@@ -39,6 +46,9 @@ class Buffer:
         self.z = []           # float32
         self.rootq = []
         self.a0gb = []
+        self.cap_t = []       # material score (stm view) of capped games, else nan
+        self.wdl = []         # explicit [win, draw, loss] target (puzzle records), else nan
+        self.cap_score_max = cap_score_max
         files = []
         for d in games_dirs:
             files.extend(sorted(Path(d).rglob("game_*.json")))
@@ -51,6 +61,10 @@ class Buffer:
                 rec = json.loads(f.read_text())
             except (json.JSONDecodeError, OSError):
                 continue  # a game being written right now
+            t_sente = float("nan")
+            if cap_score_max > 0 and rec.get("reason") == "plycap" and rec.get("final"):
+                t_sente = MT.cap_score(rec["initial"], rec["final"],
+                                       cap_score_max, cap_score_scale)
             for smp in reversed(rec["samples"]):
                 if smp["ply"] < skip_plies:
                     continue
@@ -70,23 +84,29 @@ class Buffer:
                 self.z.append(smp["z"])
                 self.rootq.append(smp["rootq"])
                 self.a0gb.append(smp["a0gb"])
+                self.cap_t.append(t_sente if smp.get("stm", 0) == 0 else -t_sente)
+                self.wdl.append(smp.get("wdl", [float("nan")] * 3))
                 if len(self.packed) >= max_positions:
                     break
             if len(self.packed) >= max_positions:
                 break
         for lst in (self.packed, self.progress, self.pol_idx, self.pol_p,
-                    self.z, self.rootq, self.a0gb):
+                    self.z, self.rootq, self.a0gb, self.cap_t, self.wdl):
             lst.reverse()
         self.progress = np.asarray(self.progress, dtype=np.float16)
         self.z = np.asarray(self.z, dtype=np.float32)
         self.rootq = np.asarray(self.rootq, dtype=np.float32)
         self.a0gb = np.asarray(self.a0gb, dtype=np.float32)
+        self.cap_t = np.asarray(self.cap_t, dtype=np.float32)
+        self.wdl = np.asarray(self.wdl, dtype=np.float32).reshape(-1, 3)
 
     def __len__(self):
         return len(self.packed)
 
     def value_targets(self, mode, lam):
         """-> (N, 3) WDL-ish target distribution."""
+        if self.cap_score_max > 0 and mode != "z":
+            raise ValueError("material scoring of capped games needs --value-target z")
         z, q, a = self.z, self.rootq, self.a0gb
         if mode == "z":
             v = z
@@ -102,6 +122,13 @@ class Buffer:
         out[:, 2] = 1.0 - v
         if mode == "z":
             out[z == 0.5] = [0.0, 1.0, 0.0]  # exact draw label
+            capped = ~np.isnan(self.cap_t)
+            if capped.any():
+                t = self.cap_t[capped]
+                out[capped] = np.stack([np.maximum(t, 0), 1.0 - np.abs(t),
+                                        np.maximum(-t, 0)], axis=1)
+            explicit = ~np.isnan(self.wdl[:, 0])
+            out[explicit] = self.wdl[explicit]
         elif mode == "blend":  # draws keep their draw mass, scaled by 1-lam
             d = z == 0.5
             out[d] = np.stack([(1.0 - lam) * 0.0 + lam * q[d],

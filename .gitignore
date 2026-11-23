@@ -19,3 +19,4 @@ __pycache__/
 /github.txt
 /issue-drafts/
 /dai-shogi-coding-agent-prompt.md
+tools/puzzlegen

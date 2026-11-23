@@ -47,6 +47,18 @@ def main():
     ap.add_argument("--lam", type=float, default=0.5,
                     help="search-Q share of the blended target")
     ap.add_argument("--value-weight", type=float, default=1.0)
+    ap.add_argument("--puzzle-dirs", nargs="*", default=[],
+                    help="puzzle records (az/make_puzzles.py) mixed into every batch")
+    ap.add_argument("--puzzle-fraction", type=float, default=0.0,
+                    help="share of each batch drawn from --puzzle-dirs")
+    ap.add_argument("--puzzle-policy-weight", type=float, default=1.0,
+                    help="policy-loss weight of puzzle rows (0 = value-only puzzle training)")
+    ap.add_argument("--cap-score-max", type=float, default=0.0,
+                    help="score ply-capped games by material, worth at most this "
+                         "share of a win (0 = draws; az/material.py)")
+    ap.add_argument("--cap-score-scale", type=float, default=0.1,
+                    help="material lead (share of one army) at which the score "
+                         "reaches tanh(1) of the maximum")
     ap.add_argument("--max-positions", type=int, default=1_000_000)
     ap.add_argument("--sample-fraction", type=float, default=1.0,
                     help="train on this share of each game's positions (stable hash)")
@@ -99,12 +111,18 @@ def main():
         t = (step - a.warmup_steps) / max(decay - a.warmup_steps, 1)
         return 1e-4 + 0.5 * (a.lr - 1e-4) * (1 + np.cos(np.pi * min(t, 1)))
 
-    buf = B.Buffer(a.games_dirs, a.max_positions, sample_fraction=a.sample_fraction)
+    buf = B.Buffer(a.games_dirs, a.max_positions, sample_fraction=a.sample_fraction,
+                   cap_score_max=a.cap_score_max, cap_score_scale=a.cap_score_scale)
     print(f"[train] buffer: {len(buf)} positions", flush=True)
     if len(buf) < a.batch:
         print("[train] not enough data", flush=True)
         return 1
     wdl_targets = buf.value_targets(a.value_target, a.lam)
+    n_puzzle = int(round(a.batch * a.puzzle_fraction)) if a.puzzle_dirs else 0
+    if n_puzzle:
+        pbuf = B.Buffer(a.puzzle_dirs)
+        p_targets = pbuf.value_targets("z", a.lam)
+        print(f"[train] puzzles: {len(pbuf)} positions, {n_puzzle} per batch", flush=True)
 
     def amp():
         return torch.autocast("cuda", dtype=torch.bfloat16,
@@ -114,10 +132,18 @@ def main():
     t0 = time.time()
     for step in range(a.step0, a.step0 + a.steps):
         opt.set_lr(float(lr_at(step)))
-        idx = rng.choice(len(buf), size=a.batch, replace=len(buf) < a.batch)
+        n_game = a.batch - n_puzzle
+        idx = rng.choice(len(buf), size=n_game, replace=len(buf) < n_game)
         packed, prog, (pol_idx, pol_p) = buf.batch(idx)
+        tv = wdl_targets[idx]
+        if n_puzzle:
+            pidx = rng.choice(len(pbuf), size=n_puzzle, replace=len(pbuf) < n_puzzle)
+            pp, pprog, (ppi, ppp) = pbuf.batch(pidx)
+            packed, prog = np.concatenate([packed, pp]), np.concatenate([prog, pprog])
+            pol_idx, pol_p = pol_idx + ppi, pol_p + ppp
+            tv = np.concatenate([tv, p_targets[pidx]])
         planes = M.unpack_batch_device(packed.tobytes(), prog, device)
-        target_v = torch.from_numpy(wdl_targets[idx]).to(device)
+        target_v = torch.from_numpy(tv).to(device)
 
         with amp():
             policy, wdl = net(planes)
@@ -127,7 +153,12 @@ def main():
             [np.full(len(p), i) for i, p in enumerate(pol_idx)])).to(device)
         mi = torch.from_numpy(np.concatenate(pol_idx)).to(device)
         mp = torch.from_numpy(np.concatenate(pol_p)).to(device)
-        loss_p = -(mp * logp[bi, mi]).sum() / a.batch
+        if n_puzzle and a.puzzle_policy_weight != 1.0:
+            roww = torch.ones(a.batch, device=device)
+            roww[n_game:] = a.puzzle_policy_weight
+            loss_p = -(mp * logp[bi, mi] * roww[bi]).sum() / a.batch
+        else:
+            loss_p = -(mp * logp[bi, mi]).sum() / a.batch
         loss_v = -(target_v * F.log_softmax(wdl.float(), dim=1)).sum() / a.batch
         loss = loss_p + a.value_weight * loss_v
 
@@ -161,7 +192,8 @@ def main():
         if cand.is_dir():
             val_dir = str(cand)
     if val_dir and list(Path(val_dir).rglob("game_*.json")):
-        vbuf = B.Buffer([val_dir])
+        vbuf = B.Buffer([val_dir], cap_score_max=a.cap_score_max,
+                        cap_score_scale=a.cap_score_scale)
         vrng = np.random.default_rng(0)  # fixed subsample every run
         vidx = vrng.choice(len(vbuf), size=min(4096, len(vbuf)),
                            replace=False)

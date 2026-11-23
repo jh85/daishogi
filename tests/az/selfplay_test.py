@@ -104,6 +104,11 @@ def main():
             ok = st[1:] == want + [rec["reason"]]
         if not ok:
             fail(f"{path.name}: record {rec['reason']}/{rec['result']} vs engine {st}")
+        # The recorded final position (material scoring) is the replayed one.
+        total += 1
+        final = gen.cmd("sfen")[5:]
+        if rec.get("final") != final:
+            fail(f"{path.name}: final {rec.get('final')} vs replay {final}")
 
         total += 1
         plies = [smp["ply"] for smp in rec["samples"]]

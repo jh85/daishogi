@@ -157,6 +157,8 @@ GameRecord playGame(const std::string& initialSfen, const SelfplayConfig& cfg,
     game.playUnchecked(real);
   }
 
+  rec.finalSfen = dai::toSfen(game.current());
+
   // Fill z targets.
   for (Sample& s : rec.samples) {
     if (rec.result == 0)
@@ -180,6 +182,7 @@ void writeGameRecord(const GameRecord& rec, const std::string& path) {
     << ",\"probe_mates\":" << rec.probeMates << ",\"solver_nodes\":" << rec.solverNodes
     << "},\n";
   f << " \"initial\": \"" << jsonEscape(rec.initialSfen) << "\",\n";
+  f << " \"final\": \"" << jsonEscape(rec.finalSfen) << "\",\n";
   f << " \"result\": " << rec.result << ", \"reason\": \"" << jsonEscape(rec.reason)
     << "\",\n \"moves\": [";
   for (size_t i = 0; i < rec.moves.size(); ++i)

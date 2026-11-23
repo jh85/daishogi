@@ -36,6 +36,11 @@ $(AZBIN): $(SRC) $(AZSRC) $(HDR) $(AZHDR)
 $(UNIT): $(SRC) tests/unit_tests.cpp $(HDR)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ $(SRC) tests/unit_tests.cpp
 
+# Short-mate puzzle finder for puzzle training (az/make_puzzles.py).
+PUZZLEGEN := tools/puzzlegen
+$(PUZZLEGEN): $(SRC) tools/puzzlegen.cpp $(HDR)
+	$(CXX) $(CXXFLAGS) -o $@ $(SRC) tools/puzzlegen.cpp
+
 # Mate solver against brute force (~2 minutes; see tests/mate_test.cpp).
 MATETEST := tests/mate_test
 $(MATETEST): $(SRC) tests/mate_test.cpp $(HDR)
@@ -59,7 +64,8 @@ az-test: $(BIN) $(AZBIN) $(AZTESTS) $(MATETEST)
 	for t in $(AZTESTS); do ./$$t || exit 1; done
 	$(AZPY) -m unittest tests/az/buffer_test.py tests/az/legal_policy_test.py \
 	  tests/az/eval_output_test.py tests/az/inference_batcher_test.py \
-	  tests/az/optimizers_test.py tests/az/selfplay_pool_test.py tests/az/tournament_test.py
+	  tests/az/optimizers_test.py tests/az/selfplay_pool_test.py tests/az/tournament_test.py \
+	  tests/az/material_test.py tests/az/puzzle_test.py
 	$(AZPY) tests/az/encode_test.py
 	$(AZPY) tests/az/selfplay_test.py
 	$(AZPY) tests/az/selfplay_test.py --full-prob 0.25
@@ -100,7 +106,7 @@ play: $(BIN)
 	./$(BIN) play --seed $(SEED) --games $(GAMES) --max-plies $(MAXPLIES) --quiet
 
 clean:
-	rm -f $(BIN) $(AZBIN) $(UNIT) $(AZTESTS) $(MATETEST) tests/mismatches.jsonl
+	rm -f $(BIN) $(AZBIN) $(UNIT) $(AZTESTS) $(MATETEST) $(PUZZLEGEN) tests/mismatches.jsonl
 	rm -rf tests/__pycache__ tests/az/__pycache__ az/__pycache__
 
 .PHONY: all test az-test mate-test corpus reftest mutation play clean
