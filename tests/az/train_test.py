@@ -52,7 +52,7 @@ def main():
     print(f"[test] trainer losses: {losses}")
 
     # Resume must continue AdamW's moments and update counter, not restart them.
-    t = subprocess.run(train + ["--init-from", str(ckpt), "--steps", "2"],
+    t = subprocess.run(train + ["--init-from", str(ckpt), "--steps", "2", "--value-fraction", "0.25"],
                        capture_output=True, text=True, timeout=900)
     if t.returncode != 0 or "restored_adamw" not in t.stdout:
         print(t.stdout[-2000:], t.stderr[-2000:])

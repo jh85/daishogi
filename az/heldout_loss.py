@@ -5,6 +5,9 @@ value = always predict the data's mean WDL, policy = uniform over legal moves.
 The policy loss uses the legal-move softmax, as the search does.
 
 Usage: heldout_loss.py CHECKPOINT GAMES_DIR [--max-positions N]
+                       [--cap-score-max M --cap-score-scale S]
+With --cap-score-max > 0, capped games get the material-scored targets that
+training uses (see material.py), and they get their own report line.
 """
 import argparse
 import sys
@@ -24,11 +27,16 @@ def main():
     ap.add_argument("checkpoint")
     ap.add_argument("games_dir")
     ap.add_argument("--max-positions", type=int, default=20000)
+    ap.add_argument("--cap-score-max", type=float, default=0.0)
+    ap.add_argument("--cap-score-scale", type=float, default=0.1)
     a = ap.parse_args()
     state = torch.load(a.checkpoint, map_location="cpu", weights_only=True)
     net = M.DaiNet(**M.net_config(state)).cuda().eval()
     net.load_state_dict(state["model"])
-    buf = B.Buffer([Path(a.games_dir)], a.max_positions)
+    buf = B.Buffer([Path(a.games_dir)], a.max_positions, cap_score_max=a.cap_score_max,
+                   cap_score_scale=a.cap_score_scale)
+    capped = ~np.isnan(buf.cap_t)
+    lv_cap, pred_cap = 0.0, []
     if len(buf) == 0:
         raise SystemExit(f"no finished games under {a.games_dir}")
     targets = buf.value_targets("z", 0.5)
@@ -53,6 +61,8 @@ def main():
         lv += per.sum()
         drawn = buf.z[idx] == 0.5
         lv_draw += per[drawn].sum()
+        cap = capped[idx]
+        lv_cap += per[cap].sum()
         n_draw += drawn.sum()
         wp = F.softmax(wdl.float().cpu(), 1).numpy()
         # decisive positions: the predicted win share among win+loss vs z
@@ -61,6 +71,7 @@ def main():
         zz = buf.z[idx][dec]
         bce_dec += -(zz * np.log(pw) + (1 - zz) * np.log(1 - pw)).sum()
         draw_mass += wp[:, 1].sum()
+        pred_cap.append(wp[cap, 0] - wp[cap, 2])
         n += len(idx)
     mean = targets.mean(0)
     base_v = -(targets * np.log(np.clip(mean, 1e-9, 1))).sum(1).mean()
@@ -71,6 +82,16 @@ def main():
     if n_dec:
         print(f"  decisive positions ({int(n_dec)}): win-vs-loss CE {bce_dec / n_dec:.3f} "
               f"(coin flip 0.693)")
+    n_cap = int(capped[:n].sum())
+    if n_cap:
+        pred = np.concatenate(pred_cap)
+        tgt = targets[:n][capped[:n]]
+        t = tgt[:, 0] - tgt[:, 2]
+        base = -(tgt * np.log(np.clip(tgt.mean(0), 1e-9, 1))).sum(1).mean()
+        corr = np.corrcoef(pred, t)[0, 1] if t.std() > 0 and pred.std() > 0 else float('nan')
+        print(f"  material-scored capped positions ({n_cap}): value CE {lv_cap / n_cap:.3f} "
+              f"(their constant mean baseline {base:.3f}); target W-L mean |t| {np.abs(t).mean():.3f}, "
+              f"predicted W-L vs target correlation {corr:.3f}")
     if n_draw:
         print(f"  drawn-game positions ({int(n_draw)}): value CE {lv_draw / n_draw:.3f}; "
               f"mean predicted draw probability {draw_mass / n:.3f}")

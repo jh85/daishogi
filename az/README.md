@@ -312,6 +312,41 @@ games against random, both nets ended about 45% of an army behind on
 material: the agent does not keep its pieces, while the random player
 captures and promotes freely.
 
+**The value head memorized games.** `az/heldout_loss.py --cap-score-max 0.5`
+compares a checkpoint on games it trained on with the next iteration's games,
+which it has not seen. Value cross-entropy (lower is better):
+
+| Checkpoint | Game 10 iterations back (trained) | Own iteration (trained) | Next iteration (unseen) | Constant mean-WDL guess, unseen |
+|---|---|---|---|---|
+| 60 | 0.566 | 0.746 | 0.954 | 0.869 |
+| 78 | 0.538 | 0.681 | 1.130 | 0.910 |
+| 129 | 0.479 | 0.603 | 1.071 | 0.852 |
+
+On decisive games, win-vs-loss cross-entropy was 0.03–0.05 on trained games
+and 0.9–2.0 on unseen ones (a coin flip is 0.693). On capped games, the
+correlation of predicted with material-scored W-L was about 0.9 on trained
+games and 0.16–0.48 on unseen ones. The policy generalized (unseen-game
+policy loss no higher than trained). It already happened at 60 steps per
+iteration (checkpoint 30: unseen 1.047, guess 0.963). Each game's ~375
+training positions share one target, and at 240 steps each is used ~2.6
+times, so a game's result was trained on ~975 times.
+
+From iteration 130, run4 trains with `--value-fraction 0.1`: the value loss
+covers a random 10% of each batch's self-play rows, divided by the full
+batch, while the policy loss covers every row (AlphaGo trained its value net
+on one position per game for the same reason). Checkpoint 140, after 11
+such iterations:
+
+| | Own iteration (trained) | Next iteration (unseen) | Guess, unseen | Decisive, unseen | Capped correlation, unseen |
+|---|---|---|---|---|---|
+| 129 (before) | 0.603 | 1.071 | 0.852 | 1.988 | 0.48 |
+| 140 (after) | 0.797 | 0.944 | 0.853 | 0.998 | 0.38 |
+
+The gap between trained and unseen games shrank (0.47 to 0.15) and the
+unseen loss fell, but it is still worse than the constant guess, and
+the unseen material correlation did not improve. The memorizing weights
+from the first 129 iterations may take longer to wash out.
+
 ### Puzzle-training experiments
 
 `tools/puzzlegen` (`make tools/puzzlegen`) finds forced mates of at most 7
@@ -357,10 +392,13 @@ simulations.
 
 ## Open points
 
-1. **Draws at the game cap and material.** Is run4's material scoring,
-   with 240 training steps per iteration, enough? Compare with its start
-   net against random again (`az/data/run4_eval/cmp40.sh`, after changing
-   the checkpoint number).
+1. **Value generalization.** run4's value head does not yet beat a
+   constant guess on unseen games, even with `--value-fraction 0.1`.
+   Watch `heldout_loss.py` on later checkpoints. If it stays worse than the
+   guess: fewer value rows still, a smaller value head, or more games per
+   iteration (each game is one independent result). Then compare against
+   random again (`az/data/run4_eval/cmp40.sh`, after changing the
+   checkpoint number).
 2. **Mate-solver settings.** run3 uses chushogi's 5000 / 3 / 2000. The
    probes cost no measurable self-play throughput (5.7k evaluations/s with
    the solver, 5.5k without; the CPU work hides behind the GPU), so a

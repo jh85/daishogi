@@ -5,6 +5,10 @@ Ported from ../chushogi (az/train.py, commit d578c81).
 
 Loss = soft cross-entropy on the visit-count policy target
      + value_weight * cross-entropy on the WDL value target.
+With --value-fraction f < 1, the value term covers only a random share f of
+each batch's self-play rows (puzzle rows keep it), still divided by the full
+batch: a game's positions share one result, and training the value head on
+all of them lets it memorize games (az/README.md, run4).
 
 Publishes checkpoints atomically (write tmp + rename) so the eval server's
 --watch reload picks them up mid-run.
@@ -22,6 +26,15 @@ import torch.nn.functional as F
 import buffer as B
 import model as M
 from optimizers import Optimizers
+
+
+def value_rows(rng, n_game, batch, fraction):
+    """Per-row value-loss mask: a random share `fraction` of the first n_game
+    (self-play) rows, and every puzzle row after them."""
+    m = np.ones(batch, dtype=np.float32)
+    if fraction < 1:
+        m[:n_game] = rng.random(n_game) < fraction
+    return m
 
 
 def main():
@@ -47,6 +60,8 @@ def main():
     ap.add_argument("--lam", type=float, default=0.5,
                     help="search-Q share of the blended target")
     ap.add_argument("--value-weight", type=float, default=1.0)
+    ap.add_argument("--value-fraction", type=float, default=1.0,
+                    help="value loss on this random share of each batch's self-play rows")
     ap.add_argument("--puzzle-dirs", nargs="*", default=[],
                     help="puzzle records (az/make_puzzles.py) mixed into every batch")
     ap.add_argument("--puzzle-fraction", type=float, default=0.0,
@@ -77,6 +92,8 @@ def main():
     ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--save-every", type=int, default=500)
     a = ap.parse_args()
+    if not 0 <= a.value_fraction <= 1:
+        ap.error("--value-fraction must be in [0, 1]")
 
     torch.manual_seed(a.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -144,6 +161,7 @@ def main():
             tv = np.concatenate([tv, p_targets[pidx]])
         planes = M.unpack_batch_device(packed.tobytes(), prog, device)
         target_v = torch.from_numpy(tv).to(device)
+        vrows = torch.from_numpy(value_rows(rng, n_game, a.batch, a.value_fraction)).to(device)
 
         with amp():
             policy, wdl = net(planes)
@@ -159,7 +177,9 @@ def main():
             loss_p = -(mp * logp[bi, mi] * roww[bi]).sum() / a.batch
         else:
             loss_p = -(mp * logp[bi, mi]).sum() / a.batch
-        loss_v = -(target_v * F.log_softmax(wdl.float(), dim=1)).sum() / a.batch
+        per_v = -(target_v * F.log_softmax(wdl.float(), dim=1)).sum(1) * vrows
+        loss_v = per_v.sum() / a.batch
+        v_mean = per_v.sum() / vrows.sum().clamp(min=1)  # reported: per value row
         loss = loss_p + a.value_weight * loss_v
 
         if not torch.isfinite(loss):
@@ -171,7 +191,7 @@ def main():
 
         if step % a.log_every == 0:
             print(f"[train] step {step} loss {loss.item():.4f} "
-                  f"(p {loss_p.item():.4f} v {loss_v.item():.4f}) "
+                  f"(p {loss_p.item():.4f} v {v_mean.item():.4f}) "
                   f"lr {lr_at(step):.2e} "
                   f"({(time.time() - t0) / (step - a.step0 + 1):.2f}s/step)",
                     flush=True)

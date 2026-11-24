@@ -105,6 +105,8 @@ def main():
                     help="passthrough to train.py")
     ap.add_argument("--cap-score-max", type=float, default=0.0,
                     help="passthrough to train.py: material scoring of capped games")
+    ap.add_argument("--value-fraction", type=float, default=1.0,
+                    help="passthrough to train.py: value loss on this share of rows")
     ap.add_argument("--cap-score-scale", type=float, default=0.1,
                     help="passthrough to train.py")
     ap.add_argument("--train-lock", default="", help="shared file lock to serialize GPU training across branches")
@@ -252,7 +254,8 @@ def main():
                    "--heads", str(a.heads), "--amp", a.amp,
                    "--sample-fraction", str(a.sample_fraction),
                    "--cap-score-max", str(a.cap_score_max),
-                   "--cap-score-scale", str(a.cap_score_scale)]
+                   "--cap-score-scale", str(a.cap_score_scale),
+                   "--value-fraction", str(a.value_fraction)]
             if a.lr_decay_steps:
                 cmd += ["--lr-decay-steps", str(a.lr_decay_steps)]
             if a.lr:
