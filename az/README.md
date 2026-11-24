@@ -105,14 +105,16 @@ left out (USI play, experiment scripts) are not ported.
 
 **Rules.** The engines play the compiled-in rules: the chu promotion rule
 by default since commit `e9a79e0` (docs/RULES.md, "Promotion"). `run_loop.py`,
-`eval_match.py` and `checkpoint_tournament.py` take `--promotion chu|normal`
+`eval_match.py` and `checkpoint_tournament.py` take `--promotion chu|honshogi`
 and pass it to every engine they start: self-play workers, players, and the
 `./daishogi` referee. Players and referee must agree, since the referee rejects
-a move its rule does not allow. run1–run4 were trained under the Normal rule;
-run4 runs with `--promotion normal` from iteration 172 (before that, from
+a move its rule does not allow. run1–run4 were trained under the honshogi rule;
+run4 runs with `--promotion honshogi` from iteration 172 (before that, from
 iteration 163, on a frozen copy of the pre-change binary). Their checkpoints
-should be evaluated with `--promotion normal` too. Self-play records name the
-rule (`"promotion"`; records without it are Normal).
+should be evaluated with `--promotion honshogi` too. Self-play records name the
+rule (`"promotion"`; records without it are honshogi). The honshogi
+rule was first called `normal`, so run4's records and `loop_config.json`
+from iteration 172 say `"normal"`.
 
 Running:
 
@@ -400,6 +402,15 @@ simulations.
 * B's gain may partly reflect the random opponent, which leaves its king
   exposed and so creates puzzle-like positions. A defending opponent is
   needed to tell.
+
+### run5: the chu promotion rule, from scratch
+
+`az/data/run5`, started 2026-11-24 from a random network under the chu
+promotion rule (`--promotion chu`, the default since `e9a79e0`). Its other
+settings are run4's final ones: material scoring of capped games
+(`--cap-score-max 0.5 --cap-score-scale 0.1`), `--value-fraction 0.1`, and
+240 training steps per iteration. run4 stopped after iteration 172 and can be
+resumed with `--promotion honshogi`.
 
 ## Open points
 

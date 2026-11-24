@@ -210,9 +210,9 @@ def engine_outcome_token(status_line):
 
 # ------------------------------------------------------------------ engine
 
-# The reference (haitaka-variants) uses the Normal promotion rule; our
+# The reference (haitaka-variants) uses the honshogi promotion rule; our
 # default is the chu rule (docs/RULES.md), so every comparison pins it.
-REF_RULES = ["--promotion", "normal"]
+REF_RULES = ["--promotion", "honshogi"]
 
 
 class Engine:

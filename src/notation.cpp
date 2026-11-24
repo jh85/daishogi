@@ -154,7 +154,7 @@ bool parseSfen(const std::string& sfen, Position& out, std::string* error) {
     const int sq = makeSq(x, y);
     const Color col = upper ? Sente : Gote;
     // Under the chu rule an unpromoted piece may stand where it cannot move.
-    if (promotionRule() == PromotionRule::Normal &&
+    if (promotionRule() == PromotionRule::Honshogi &&
         relRank(sq, col) < info(static_cast<Kind>(k)).deadRanks)
       return fail(error, "unpromoted " + info(static_cast<Kind>(k)).name +
                              " on a rank where it cannot move (" + squareName(sq) + ")");

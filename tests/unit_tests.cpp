@@ -83,9 +83,9 @@ static void testNotation() {
   Position p;
   CHECK(!parseSfen("15/15/15 b - 1", p));                       // too few ranks
   CHECK(!parseSfen("16/15/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p));
-  // Dead pieces: rejected under the Normal rule, allowed under the chu rule.
+  // Dead pieces: rejected under the honshogi rule, allowed under the chu rule.
   const PromotionRule savedRule = promotionRule();
-  for (PromotionRule r : {PromotionRule::Normal, PromotionRule::Chu}) {
+  for (PromotionRule r : {PromotionRule::Honshogi, PromotionRule::Chu}) {
     setPromotionRule(r);
     const bool ok = r == PromotionRule::Chu;
     CHECK(parseSfen("PA14/15/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p) == ok);  // pawn
@@ -181,11 +181,11 @@ static void testRules() {
   // Applying a capture of a lion by a non-lion sets the state.
   p.apply(Move{static_cast<int16_t>(makeSq(7, 11)), kNoSquare, static_cast<int16_t>(makeSq(7, 5)), false});
   CHECK(p.lionCapture == makeSq(7, 5));
-  // Promotion under the Normal rule (the chu rule: testPromotionRule):
+  // Promotion under the honshogi rule (the chu rule: testPromotionRule):
   // optional on entering / leaving / inside the zone, compulsory on the last
   // rank for a pawn and the last two ranks for a knight.
   const PromotionRule savedRule = promotionRule();
-  setPromotionRule(PromotionRule::Normal);
+  setPromotionRule(PromotionRule::Honshogi);
   p = sfen("14ki/7PA7/12KN2/15/7SI7/15/15/15/15/15/15/15/15/15/KI14 b - 1");
   CHECK(legal(p).count("8b8a+") && !legal(p).count("8b8a"));
   CHECK(legal(p).count("3c2a+") && !legal(p).count("3c2a"));
@@ -264,13 +264,13 @@ static void testCounterStrike() {
   setCounterStrike(saved);
 }
 
-// Promotion rules: chu (default) and Normal (haitaka-variants).
+// Promotion rules: chu (default) and honshogi (haitaka-variants).
 static void testPromotionRule() {
   struct Case {
     const char* what;
     const char* sfen;
     const char* move;
-    bool chu, normal;  // legal under each rule
+    bool chu, honshogi;  // legal under each rule
   };
   const char* enter = "ki14/15/15/15/15/7SI7/15/15/15/15/15/15/15/15/14KI b - 1";
   const char* inside = "ki14/15/7SI7/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1";
@@ -303,10 +303,10 @@ static void testPromotionRule() {
       {"Gote entering its zone", "ki14/15/15/15/15/15/15/15/15/7si7/15/15/15/15/14KI w - 1", "8j8k+", true, true},
   };
   const PromotionRule saved = promotionRule();
-  for (PromotionRule r : {PromotionRule::Chu, PromotionRule::Normal}) {
+  for (PromotionRule r : {PromotionRule::Chu, PromotionRule::Honshogi}) {
     setPromotionRule(r);
     for (const Case& c : cases) {
-      const bool want = r == PromotionRule::Chu ? c.chu : c.normal;
+      const bool want = r == PromotionRule::Chu ? c.chu : c.honshogi;
       const bool got = legal(sfen(c.sfen)).count(c.move) > 0;
       if (got != want)
         std::printf("promotion %s, %s: %s %s\n", promotionRuleName(r), c.what, c.move,
@@ -316,7 +316,7 @@ static void testPromotionRule() {
   }
   // Dead pieces: under the chu rule an unpromoted iron (8a), knight (8b) and
   // pawn (1a) may stand where they cannot move, have no moves, and can be
-  // captured. The Normal rule rejects such a position.
+  // captured. The honshogi rule rejects such a position.
   const std::string dead = "ki6IR6PA/7KN7/15/7ro7/15/15/15/15/15/15/15/15/15/15/14KI ";
   Position p;
   setPromotionRule(PromotionRule::Chu);
@@ -324,13 +324,13 @@ static void testPromotionRule() {
   for (const std::string& m : legal(p))
     CHECK(m.rfind("8a", 0) != 0 && m.rfind("8b", 0) != 0 && m.rfind("1a", 0) != 0);
   CHECK(legal(sfen(dead + "w - 1")).count("8d8b"));
-  setPromotionRule(PromotionRule::Normal);
+  setPromotionRule(PromotionRule::Honshogi);
   CHECK(!parseSfen(dead + "b - 1", p));
   PromotionRule parsed;
-  CHECK(parsePromotionRule("normal", parsed) && parsed == PromotionRule::Normal);
+  CHECK(parsePromotionRule("honshogi", parsed) && parsed == PromotionRule::Honshogi);
   CHECK(parsePromotionRule("chu", parsed) && parsed == PromotionRule::Chu);
   CHECK(!parsePromotionRule("Chu", parsed));
-  CHECK(std::string(promotionRuleName(PromotionRule::Normal)) == "normal");
+  CHECK(std::string(promotionRuleName(PromotionRule::Honshogi)) == "honshogi");
   setPromotionRule(saved);
 }
 

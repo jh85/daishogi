@@ -4,7 +4,7 @@
 // Ported from ../chushogi (src/az/main.cpp, commit d578c81). Left out for
 // now: the USI engine mode (usi_mode.*) and the root audit commands.
 //
-// Usage: daishogi-az [--counter-strike all|lishogi|jcsa] [--promotion chu|normal]
+// Usage: daishogi-az [--counter-strike all|lishogi|jcsa] [--promotion chu|honshogi]
 // (rule variants, see docs/RULES.md; self-play records name both), then
 // commands on stdin:
 //
@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
       ++i;
     } else {
       fatal(std::string("unknown argument: ") + argv[i] +
-            " (only --counter-strike all|lishogi|jcsa, --promotion chu|normal)");
+            " (only --counter-strike all|lishogi|jcsa, --promotion chu|honshogi)");
     }
   }
   dai::Position start;

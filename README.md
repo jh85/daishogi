@@ -7,7 +7,7 @@ provides:
   (parse and write);
 * a complete legal move generator, checked against Shogitter's own engine
   ([haitaka-variants](https://github.com/na2hiro/haitaka-variants), rule
-  49) under its promotion rule (`--promotion normal`);
+  49) under its promotion rule (`--promotion honshogi`);
 * game-end detection: royal capture, no legal move, fourfold repetition,
   perpetual check;
 * random-versus-random play with reproducible seeds.
@@ -39,7 +39,7 @@ make daishogi-az    # AlphaZero self-play worker (see az/README.md)
 make az-test AZPY=~/venv/bin/python   # AlphaZero tests (NumPy + PyTorch)
 make mate-test      # mate solver vs brute force (~2 min)
 make COUNTER_STRIKE=jcsa   # another default 先獅子 variant (all | lishogi | jcsa); `make clean` first
-make PROMOTION=normal      # haitaka-variants' promotion rule as the default (chu | normal); `make clean` first
+make PROMOTION=honshogi      # haitaka-variants' promotion rule as the default (chu | honshogi); `make clean` first
 ```
 
 The 先獅子 rule follows haitaka-variants by default. The JCSA and lishogi
@@ -47,7 +47,7 @@ variants protect fewer lions; select one at runtime with
 `daishogi --counter-strike jcsa ...` (also `daishogi-az`). See
 docs/RULES.md, "Counter-strike (先獅子) variants".
 
-Promotion follows chu shogi by default. `--promotion normal` (also for
+Promotion follows chu shogi by default. `--promotion honshogi` (also for
 `daishogi-az`) selects haitaka-variants' rule instead; the comparison tests
 against haitaka-variants use it. See docs/RULES.md, "Promotion".
 
@@ -155,7 +155,7 @@ details and the reasons for each choice.
   far five ranks, on a move that starts there and captures, and on a move
   to a rank where the piece could never move again (the last rank, or the
   last two for a knight). It is never compulsory: a piece that does not
-  promote there stays as a dead piece. `--promotion normal` selects
+  promote there stays as a dead piece. `--promotion honshogi` selects
   haitaka-variants' rule instead: any move that starts or ends in the zone,
   compulsory where the piece could not move again.
 * The chu shogi lion capture rules apply: adjacent lions, protected lions,

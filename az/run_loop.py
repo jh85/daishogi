@@ -114,7 +114,7 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--python", default=sys.executable,
                     help="interpreter for eval_server.py / train.py")
-    ap.add_argument("--promotion", choices=["chu", "normal"], default="",
+    ap.add_argument("--promotion", choices=["chu", "honshogi"], default="",
                     help="promotion rule passed to every engine, referee included (default: the binaries' compiled-in rule; see docs/RULES.md)")
     ap.add_argument("--resume", action="store_true",
                     help="continue iteration numbering after existing "

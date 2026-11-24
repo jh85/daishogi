@@ -158,7 +158,7 @@ def main():
     ap.add_argument("--mate-nodes", type=int, default=5000, help="root mate budget; 0 disables")
     ap.add_argument("--probe-depth", type=int, default=3, help="in-tree mate depth; 0 disables")
     ap.add_argument("--probe-nodes", type=int, default=2000)
-    ap.add_argument("--promotion", choices=["chu", "normal"], default="",
+    ap.add_argument("--promotion", choices=["chu", "honshogi"], default="",
                     help="promotion rule passed to every engine, referee included (default: the binaries' compiled-in rule; see docs/RULES.md)")
     a = ap.parse_args()
     if a.games <= 0 or (a.paired_openings and a.games % 2):

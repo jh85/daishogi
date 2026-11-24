@@ -13,13 +13,13 @@ $(error COUNTER_STRIKE must be all, lishogi or jcsa)
 endif
 CXXFLAGS += -DDAI_COUNTER_STRIKE=$(CS_$(COUNTER_STRIKE))
 
-# Promotion rule compiled in as the default: chu | normal (see docs/RULES.md;
+# Promotion rule compiled in as the default: chu | honshogi (see docs/RULES.md;
 # the binaries' --promotion overrides it). `make clean` after changing it.
 PROMOTION ?= chu
 PR_chu := 0
-PR_normal := 1
+PR_honshogi := 1
 ifeq ($(PR_$(PROMOTION)),)
-$(error PROMOTION must be chu or normal)
+$(error PROMOTION must be chu or honshogi)
 endif
 CXXFLAGS += -DDAI_PROMOTION=$(PR_$(PROMOTION))
 

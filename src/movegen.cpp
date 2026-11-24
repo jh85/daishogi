@@ -160,13 +160,13 @@ std::vector<Move> generateLegal(const Position& pos) {
       if (us == Gote) delta = physical(delta, Gote);
       const std::vector<Dir>* follow = continuation(kind, delta);
 
-      // Promotion (docs/RULES.md, "Promotion"). Normal: optional when the
+      // Promotion (docs/RULES.md, "Promotion"). Honshogi: optional when the
       // move starts or ends in the far five ranks; compulsory where the
       // unpromoted piece could not move again. Chu: optional when the move
       // enters the zone, or starts in it and captures, or reaches a rank
       // where the unpromoted piece could not move again; never compulsory.
       bool can, must;
-      if (promotionRule() == PromotionRule::Normal) {
+      if (promotionRule() == PromotionRule::Honshogi) {
         can = ki.promotesTo >= 0 &&
               (relRank(s, us) < kPromotionRanks ||
                relRank(t, us) < kPromotionRanks);

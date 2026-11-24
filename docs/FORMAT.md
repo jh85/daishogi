@@ -141,7 +141,7 @@ flying ox 飛牛.
    ignored by the rules and by repetition.
 
 Fields 2–4 may be omitted; the defaults are `b - 1`. The parser rejects
-unknown codes and wrong rank lengths. Under `--promotion normal` it also
+unknown codes and wrong rank lengths. Under `--promotion honshogi` it also
 rejects unpromoted pieces on squares from which they could never move: a
 pawn, lance, iron or stone general on the last rank, or a knight on the last
 two ranks. Under the default chu rule such dead pieces are legal (see

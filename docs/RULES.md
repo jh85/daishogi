@@ -21,7 +21,7 @@ differently from the written rules is listed under
 [Discrepancies and choices](#discrepancies-and-choices). There are three
 deliberate exceptions:
 * **Promotion** follows chu shogi by default (discrepancies 2 and 3). The
-  reference's rule is available as `--promotion normal`, and every
+  reference's rule is available as `--promotion honshogi`, and every
   comparison with the reference uses it.
 * Two concern lion-versus-lion captures by a two-step move, where this
   implementation follows lishogi's chu shogi and the Japan Chu Shogi
@@ -136,28 +136,28 @@ and it can still be captured.
 The rule needs no memory of earlier moves. Whether a move may promote
 depends only on its start and end squares and whether it captures.
 
-**Normal rule** (`--promotion normal`, haitaka-variants and Shogitter, which
-call it "Normal"). A promotable piece **may** promote at the end of any move
+**Honshogi rule** (`--promotion honshogi`; haitaka-variants and Shogitter,
+which call it "Normal", i.e. as in normal shogi). A promotable piece **may** promote at the end of any move
 that **starts or ends** in the zone. That includes moves inside the zone
 without a capture, and moves that leave it. Promotion is **compulsory** where
 the unpromoted piece could never move again, the same pieces and ranks as
 above, so there are no dead pieces.
 
-| Move (examples in `testPromotionRule`, `tests/unit_tests.cpp`) | Chu | Normal |
+| Move (examples in `testPromotionRule`, `tests/unit_tests.cpp`) | Chu | Honshogi |
 |---|---|---|
 | Enters the zone | may promote | may promote |
 | Starts in the zone and captures (also outside it) | may promote | may promote |
 | Inside the zone, or leaving it, without a capture | **no** | may promote |
 | Pawn, lance, iron or stone to the last rank, or knight to the last two (also inside the zone without a capture) | may promote (if not, the piece is dead) | **must** promote |
 
-* **Runtime:** `daishogi --promotion normal ...` and
-  `daishogi-az --promotion normal` set the rule for the process. Self-play
+* **Runtime:** `daishogi --promotion honshogi ...` and
+  `daishogi-az --promotion honshogi` set the rule for the process. Self-play
   records name it (`"promotion"`).
-* **Compile time:** `make clean && make PROMOTION=normal` changes the
+* **Compile time:** `make clean && make PROMOTION=honshogi` changes the
   default.
 * The comparison tests against the reference (`tests/compare.py`,
   `replay_games.py`, `live_compare.py`, `mutation_check.py`) pass
-  `--promotion normal` (`REF_RULES` in `tests/refconv.py`). Under the chu
+  `--promotion honshogi` (`REF_RULES` in `tests/refconv.py`). Under the chu
   rule, 4,427 of the corpus's 14,251 positions have different legal moves.
 * Promotion targets are listed in [FORMAT.md](FORMAT.md). They match
   Shogitter and both Wikipedias.
@@ -299,14 +299,14 @@ that protect fewer lions. Both are available for comparison with chu shogi.
    inside it. Japanese Wikipedia notes that internet programs use the
    honshogi style. Shogitter and the reference use the honshogi ("Normal")
    style: promotion is allowed on any move starting or ending in the
-   zone. **Implemented: both. The chu rule is the default; Normal is
-   `--promotion normal`** (see [Promotion](#promotion)).
+   zone. **Implemented: both. The chu rule is the default; the honshogi rule is
+   `--promotion honshogi`** (see [Promotion](#promotion)).
 3. **Compulsory promotion.** The Wikipedias only say that unpromoted pieces
    on the last rank(s) would be dead. The reference forbids dead pieces
    (pawn, lance, iron and stone on the last rank; knight on the last two),
    so promotion is compulsory there. **Implemented: never compulsory under
    the chu rule, as in chu shogi.** A piece that does not promote stays
-   there, dead, and can be captured. Under `--promotion normal` it is
+   there, dead, and can be captured. Under `--promotion honshogi` it is
    compulsory, as in the reference.
 4. **先獅子 versus falcon and eagle two-step moves.** Read literally, 先獅子
    is about whether a lion was taken by a non-lion on the previous move.
