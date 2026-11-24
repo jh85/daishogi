@@ -26,6 +26,24 @@ inline void setCounterStrike(CounterStrike r) { gCounterStrike = r; }
 bool parseCounterStrike(const std::string& name, CounterStrike& out);  // all|lishogi|jcsa
 const char* counterStrikeName(CounterStrike r);
 
+// Promotion rule (docs/RULES.md, "Promotion"). Process-wide like the
+// counter-strike rule (setPromotionRule, or the binaries' --promotion
+// option); compile-time default -DDAI_PROMOTION=0|1 (Chu, Normal).
+//   Chu     a move may promote if it enters the zone from outside, or starts
+//           in the zone and captures, or ends where the unpromoted piece
+//           could not move again (pawn, lance, iron, stone: last rank;
+//           knight: last two ranks). Never compulsory: a piece that does
+//           not promote there stays, dead. (Default.)
+//   Normal  any move that starts or ends in the zone may promote, and
+//           promotion is compulsory where the unpromoted piece could not
+//           move again (haitaka-variants / Shogitter).
+enum class PromotionRule : uint8_t { Chu = 0, Normal = 1 };
+extern PromotionRule gPromotionRule;
+inline PromotionRule promotionRule() { return gPromotionRule; }
+inline void setPromotionRule(PromotionRule r) { gPromotionRule = r; }
+bool parsePromotionRule(const std::string& name, PromotionRule& out);  // chu|normal
+const char* promotionRuleName(PromotionRule r);
+
 struct Position {
   std::array<Piece, kSquares> board{};  // 0 = empty
   Color sideToMove = Sente;

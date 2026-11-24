@@ -153,7 +153,9 @@ bool parseSfen(const std::string& sfen, Position& out, std::string* error) {
     if (x < 0) return fail(error, "rank " + std::to_string(y + 1) + " has more than 15 squares");
     const int sq = makeSq(x, y);
     const Color col = upper ? Sente : Gote;
-    if (relRank(sq, col) < info(static_cast<Kind>(k)).deadRanks)
+    // Under the chu rule an unpromoted piece may stand where it cannot move.
+    if (promotionRule() == PromotionRule::Normal &&
+        relRank(sq, col) < info(static_cast<Kind>(k)).deadRanks)
       return fail(error, "unpromoted " + info(static_cast<Kind>(k)).name +
                              " on a rank where it cannot move (" + squareName(sq) + ")");
     pos.board[sq] = makePiece(static_cast<Kind>(k), col);

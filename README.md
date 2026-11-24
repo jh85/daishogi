@@ -7,7 +7,7 @@ provides:
   (parse and write);
 * a complete legal move generator, checked against Shogitter's own engine
   ([haitaka-variants](https://github.com/na2hiro/haitaka-variants), rule
-  49);
+  49) under its promotion rule (`--promotion normal`);
 * game-end detection: royal capture, no legal move, fourfold repetition,
   perpetual check;
 * random-versus-random play with reproducible seeds.
@@ -39,12 +39,17 @@ make daishogi-az    # AlphaZero self-play worker (see az/README.md)
 make az-test AZPY=~/venv/bin/python   # AlphaZero tests (NumPy + PyTorch)
 make mate-test      # mate solver vs brute force (~2 min)
 make COUNTER_STRIKE=jcsa   # another default 先獅子 variant (all | lishogi | jcsa); `make clean` first
+make PROMOTION=normal      # haitaka-variants' promotion rule as the default (chu | normal); `make clean` first
 ```
 
 The 先獅子 rule follows haitaka-variants by default. The JCSA and lishogi
 variants protect fewer lions; select one at runtime with
 `daishogi --counter-strike jcsa ...` (also `daishogi-az`). See
 docs/RULES.md, "Counter-strike (先獅子) variants".
+
+Promotion follows chu shogi by default. `--promotion normal` (also for
+`daishogi-az`) selects haitaka-variants' rule instead; the comparison tests
+against haitaka-variants use it. See docs/RULES.md, "Promotion".
 
 `tools/refgen` is needed only to regenerate reference data. It needs Rust
 (`cargo`) and the `../haitaka-variants` checkout, which it uses unmodified:
@@ -146,15 +151,21 @@ details and the reasons for each choice.
 * The side to move with no legal move loses.
 * The fourth occurrence of a position is a draw, unless one side gave
   perpetual check; then that side loses.
-* Promotion is optional on any move that starts or ends in the far five
-  ranks. It is compulsory where the piece could not move again.
+* Promotion (chu rule, the default) is allowed on a move that enters the
+  far five ranks, on a move that starts there and captures, and on a move
+  to a rank where the piece could never move again (the last rank, or the
+  last two for a knight). It is never compulsory: a piece that does not
+  promote there stays as a dead piece. `--promotion normal` selects
+  haitaka-variants' rule instead: any move that starts or ends in the zone,
+  compulsory where the piece could not move again.
 * The chu shogi lion capture rules apply: adjacent lions, protected lions,
   付け喰い, and 先獅子. A lion may always capture an adjacent lion.
 * No more than one unpromoted pawn, and one unpromoted go-between, per side
   per file.
 
-Where the reference's behaviour could be read differently from the written
-rules, this implementation follows the reference. These cases are
+Apart from promotion, where the reference's behaviour could be read
+differently from the written rules, this implementation follows the
+reference. These cases are
 falcon/eagle two-step moves under 先獅子, two-step lion captures, and igui
 on the last royal piece. Two exceptions follow lishogi and the JCSA
 instead, both for lion two-step moves that take a lion:

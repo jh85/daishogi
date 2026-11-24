@@ -13,6 +13,16 @@ $(error COUNTER_STRIKE must be all, lishogi or jcsa)
 endif
 CXXFLAGS += -DDAI_COUNTER_STRIKE=$(CS_$(COUNTER_STRIKE))
 
+# Promotion rule compiled in as the default: chu | normal (see docs/RULES.md;
+# the binaries' --promotion overrides it). `make clean` after changing it.
+PROMOTION ?= chu
+PR_chu := 0
+PR_normal := 1
+ifeq ($(PR_$(PROMOTION)),)
+$(error PROMOTION must be chu or normal)
+endif
+CXXFLAGS += -DDAI_PROMOTION=$(PR_$(PROMOTION))
+
 SRC := src/types.cpp src/position.cpp src/notation.cpp src/movegen.cpp src/game.cpp src/mate.cpp
 HDR := src/types.h src/position.h src/notation.h src/movegen.h src/game.h src/mate.h
 BIN := daishogi

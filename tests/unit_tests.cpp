@@ -83,8 +83,15 @@ static void testNotation() {
   Position p;
   CHECK(!parseSfen("15/15/15 b - 1", p));                       // too few ranks
   CHECK(!parseSfen("16/15/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p));
-  CHECK(!parseSfen("PA14/15/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p));  // dead pawn
-  CHECK(!parseSfen("15/KN14/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p)); // dead knight
+  // Dead pieces: rejected under the Normal rule, allowed under the chu rule.
+  const PromotionRule savedRule = promotionRule();
+  for (PromotionRule r : {PromotionRule::Normal, PromotionRule::Chu}) {
+    setPromotionRule(r);
+    const bool ok = r == PromotionRule::Chu;
+    CHECK(parseSfen("PA14/15/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p) == ok);  // pawn
+    CHECK(parseSfen("15/KN14/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p) == ok); // knight
+  }
+  setPromotionRule(savedRule);
   CHECK(!parseSfen("ZZ14/15/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p)); // unknown
   CHECK(!parseSfen("+KI14/15/15/15/15/15/15/15/15/15/15/15/15/15/15 b - 1", p)); // no +KI
   // Piece codes are exactly two letters of one case.
@@ -174,8 +181,11 @@ static void testRules() {
   // Applying a capture of a lion by a non-lion sets the state.
   p.apply(Move{static_cast<int16_t>(makeSq(7, 11)), kNoSquare, static_cast<int16_t>(makeSq(7, 5)), false});
   CHECK(p.lionCapture == makeSq(7, 5));
-  // Promotion: optional on entering / leaving / inside the zone, compulsory
-  // on the last rank for a pawn and the last two ranks for a knight.
+  // Promotion under the Normal rule (the chu rule: testPromotionRule):
+  // optional on entering / leaving / inside the zone, compulsory on the last
+  // rank for a pawn and the last two ranks for a knight.
+  const PromotionRule savedRule = promotionRule();
+  setPromotionRule(PromotionRule::Normal);
   p = sfen("14ki/7PA7/12KN2/15/7SI7/15/15/15/15/15/15/15/15/15/KI14 b - 1");
   CHECK(legal(p).count("8b8a+") && !legal(p).count("8b8a"));
   CHECK(legal(p).count("3c2a+") && !legal(p).count("3c2a"));
@@ -184,6 +194,9 @@ static void testRules() {
   // Two pawns on a file: the moving pawn may not stay unpromoted.
   p = sfen("14ki/15/12PA2/15/15/15/15/15/12PA2/15/15/15/15/15/KI14 b - 1");
   CHECK(legal(p).count("3c3b+") && !legal(p).count("3c3b") && !legal(p).count("3i3h"));
+  setPromotionRule(PromotionRule::Chu);  // 3c3b may not promote: no move at all
+  CHECK(!legal(p).count("3c3b+") && !legal(p).count("3c3b"));
+  setPromotionRule(savedRule);
   // Violent ox: two squares, blocked by a piece in between.
   p = sfen("14ki/15/15/15/15/15/7PA7/7VO7/15/15/15/15/15/15/KI14 b - 1");
   CHECK(!legal(p).count("8h8f") && legal(p).count("8h8j") && !legal(p).count("8h8k"));
@@ -249,6 +262,76 @@ static void testCounterStrike() {
   CHECK(!parseCounterStrike("JCSA", parsed));
   CHECK(std::string(counterStrikeName(CounterStrike::Lishogi)) == "lishogi");
   setCounterStrike(saved);
+}
+
+// Promotion rules: chu (default) and Normal (haitaka-variants).
+static void testPromotionRule() {
+  struct Case {
+    const char* what;
+    const char* sfen;
+    const char* move;
+    bool chu, normal;  // legal under each rule
+  };
+  const char* enter = "ki14/15/15/15/15/7SI7/15/15/15/15/15/15/15/15/14KI b - 1";
+  const char* inside = "ki14/15/7SI7/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1";
+  const char* edge = "ki14/15/15/15/7SI7/8pa6/15/15/15/15/15/15/15/15/14KI b - 1";  // Gote pawn 7f
+  const char* pawn = "ki14/7PA7/15/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1";
+  const char* lance = "ki14/15/7LA7/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1";
+  const char* iron = "ki14/7IR7/15/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1";
+  const char* knight = "ki14/15/15/7KN7/15/15/15/15/15/15/15/15/15/15/14KI b - 1";
+  const Case cases[] = {
+      {"enter the zone", enter, "8f8e+", true, true},
+      {"enter the zone, defer", enter, "8f8e", true, true},
+      {"inside, no capture", inside, "8c8b+", false, true},
+      {"inside, no capture, defer", inside, "8c8b", true, true},
+      {"inside, capture", "ki14/7pa7/7SI7/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1", "8c8b+", true, true},
+      {"leave, no capture", edge, "8e9f+", false, true},
+      {"leave, capture", edge, "8e7f+", true, true},
+      {"pawn to the last rank", pawn, "8b8a+", true, true},
+      {"pawn to the last rank, defer", pawn, "8b8a", true, false},
+      {"lance to the last rank inside the zone", lance, "8c8a+", true, true},
+      {"lance to the last rank, defer", lance, "8c8a", true, false},
+      {"iron to the last rank inside the zone", iron, "8b8a+", true, true},
+      {"iron to the last rank, defer", iron, "8b8a", true, false},
+      {"iron to the last rank capturing", "ki6pa7/7IR7/15/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1", "8b8a+", true, true},
+      {"knight inside to the second rank", knight, "8d7b+", true, true},
+      {"knight inside, not to the last two ranks", "ki14/15/15/15/7KN7/15/15/15/15/15/15/15/15/15/14KI b - 1", "8e7c+", false, true},
+      {"stone to the last rank inside the zone", "ki14/7ST7/15/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1", "8b7a+", true, true},
+      {"stone to the last rank, defer", "ki14/7ST7/15/15/15/15/15/15/15/15/15/15/15/15/14KI b - 1", "8b7a", true, false},
+      {"knight inside to the second rank, defer", knight, "8d7b", true, false},
+      {"Gote inside its zone, no capture", "ki14/15/15/15/15/15/15/15/15/15/15/15/7si7/15/14KI w - 1", "8m8n+", false, true},
+      {"Gote entering its zone", "ki14/15/15/15/15/15/15/15/15/7si7/15/15/15/15/14KI w - 1", "8j8k+", true, true},
+  };
+  const PromotionRule saved = promotionRule();
+  for (PromotionRule r : {PromotionRule::Chu, PromotionRule::Normal}) {
+    setPromotionRule(r);
+    for (const Case& c : cases) {
+      const bool want = r == PromotionRule::Chu ? c.chu : c.normal;
+      const bool got = legal(sfen(c.sfen)).count(c.move) > 0;
+      if (got != want)
+        std::printf("promotion %s, %s: %s %s\n", promotionRuleName(r), c.what, c.move,
+                    got ? "legal" : "illegal");
+      CHECK(got == want);
+    }
+  }
+  // Dead pieces: under the chu rule an unpromoted iron (8a), knight (8b) and
+  // pawn (1a) may stand where they cannot move, have no moves, and can be
+  // captured. The Normal rule rejects such a position.
+  const std::string dead = "ki6IR6PA/7KN7/15/7ro7/15/15/15/15/15/15/15/15/15/15/14KI ";
+  Position p;
+  setPromotionRule(PromotionRule::Chu);
+  CHECK(parseSfen(dead + "b - 1", p));
+  for (const std::string& m : legal(p))
+    CHECK(m.rfind("8a", 0) != 0 && m.rfind("8b", 0) != 0 && m.rfind("1a", 0) != 0);
+  CHECK(legal(sfen(dead + "w - 1")).count("8d8b"));
+  setPromotionRule(PromotionRule::Normal);
+  CHECK(!parseSfen(dead + "b - 1", p));
+  PromotionRule parsed;
+  CHECK(parsePromotionRule("normal", parsed) && parsed == PromotionRule::Normal);
+  CHECK(parsePromotionRule("chu", parsed) && parsed == PromotionRule::Chu);
+  CHECK(!parsePromotionRule("Chu", parsed));
+  CHECK(std::string(promotionRuleName(PromotionRule::Normal)) == "normal");
+  setPromotionRule(saved);
 }
 
 static void testGame() {
@@ -443,6 +526,7 @@ int main() {
   testPerft();
   testRules();
   testCounterStrike();
+  testPromotionRule();
   testGame();
   testFlip();
   if (failures) {

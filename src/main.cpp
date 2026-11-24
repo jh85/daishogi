@@ -8,7 +8,9 @@
 //   daishogi batch                                   line protocol on stdin
 //
 // Any command also takes --counter-strike all|lishogi|jcsa: the 先獅子
-// variant (default: all, the haitaka-variants rule; see docs/RULES.md).
+// variant (default: all, the haitaka-variants rule), and --promotion
+// chu|normal: the promotion rule (default: chu; normal is haitaka-variants'
+// rule). See docs/RULES.md.
 //
 // See README.md and docs/FORMAT.md.
 
@@ -363,6 +365,16 @@ int main(int argc, char** argv) {
         return 2;
       }
       setCounterStrike(r);
+      ++i;
+      continue;
+    }
+    if (std::string(argv[i]) == "--promotion") {
+      PromotionRule r;
+      if (i + 1 >= argc || !parsePromotionRule(argv[i + 1], r)) {
+        std::cerr << "--promotion must be chu or normal\n";
+        return 2;
+      }
+      setPromotionRule(r);
       ++i;
       continue;
     }

@@ -160,12 +160,25 @@ std::vector<Move> generateLegal(const Position& pos) {
       if (us == Gote) delta = physical(delta, Gote);
       const std::vector<Dir>* follow = continuation(kind, delta);
 
-      // Promotion: optional when the move starts or ends in the far five
-      // ranks; compulsory where the unpromoted piece could not move again.
-      const bool can = ki.promotesTo >= 0 &&
-                       (relRank(s, us) < kPromotionRanks ||
-                        relRank(t, us) < kPromotionRanks);
-      const bool must = can && relRank(t, us) < ki.deadRanks;
+      // Promotion (docs/RULES.md, "Promotion"). Normal: optional when the
+      // move starts or ends in the far five ranks; compulsory where the
+      // unpromoted piece could not move again. Chu: optional when the move
+      // enters the zone, or starts in it and captures, or reaches a rank
+      // where the unpromoted piece could not move again; never compulsory.
+      bool can, must;
+      if (promotionRule() == PromotionRule::Normal) {
+        can = ki.promotesTo >= 0 &&
+              (relRank(s, us) < kPromotionRanks ||
+               relRank(t, us) < kPromotionRanks);
+        must = can && relRank(t, us) < ki.deadRanks;
+      } else {
+        const bool startIn = relRank(s, us) < kPromotionRanks;
+        const bool endIn = relRank(t, us) < kPromotionRanks;
+        const bool captures = pos.board[t] != 0;  // targets hold no friendly piece
+        const bool deadEnd = relRank(t, us) < ki.deadRanks;
+        can = ki.promotesTo >= 0 && ((!startIn && endIn) || (startIn && captures) || deadEnd);
+        must = false;
+      }
       const Move single{static_cast<int16_t>(s), kNoSquare, static_cast<int16_t>(t), false};
       if (!must) add(single, kind);
       if (can && !follow) {

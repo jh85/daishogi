@@ -4,8 +4,9 @@
 // Ported from ../chushogi (src/az/main.cpp, commit d578c81). Left out for
 // now: the USI engine mode (usi_mode.*) and the root audit commands.
 //
-// Usage: daishogi-az [--counter-strike all|lishogi|jcsa]  (先獅子 variant;
-// self-play records name it), then commands on stdin:
+// Usage: daishogi-az [--counter-strike all|lishogi|jcsa] [--promotion chu|normal]
+// (rule variants, see docs/RULES.md; self-play records name both), then
+// commands on stdin:
 //
 //   selfplay --games N --sims S --batch B --seed K --out DIR
 //            [--temp-plies T] [--root-policy-temp X] [--eval random|pipe]
@@ -95,13 +96,18 @@ std::string usi(const dai::Move& m, bool flip) {
 int main(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     dai::CounterStrike r;
+    dai::PromotionRule pr;
     if (std::string(argv[i]) == "--counter-strike" && i + 1 < argc &&
         dai::parseCounterStrike(argv[i + 1], r)) {
       dai::setCounterStrike(r);
       ++i;
+    } else if (std::string(argv[i]) == "--promotion" && i + 1 < argc &&
+               dai::parsePromotionRule(argv[i + 1], pr)) {
+      dai::setPromotionRule(pr);
+      ++i;
     } else {
       fatal(std::string("unknown argument: ") + argv[i] +
-            " (only --counter-strike all|lishogi|jcsa)");
+            " (only --counter-strike all|lishogi|jcsa, --promotion chu|normal)");
     }
   }
   dai::Position start;

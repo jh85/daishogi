@@ -24,7 +24,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import make_corpus  # noqa: E402
-from refconv import (sfen_to_wire, state_key, usi_to_ref_move,  # noqa: E402
+from refconv import (REF_RULES, sfen_to_wire, state_key, usi_to_ref_move,  # noqa: E402
                      ref_outcome_token, wire_to_sfen)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +36,7 @@ def run(cmd):
 
 
 def our_games(binary, seed, games, max_plies):
-    out = subprocess.run([binary, "play", "--seed", str(seed), "--games", str(games),
+    out = subprocess.run([binary, *REF_RULES, "play", "--seed", str(seed), "--games", str(games),
                           "--max-plies", str(max_plies)],
                          capture_output=True, text=True, check=True).stdout.splitlines()
     res, cur = [], None
@@ -101,7 +101,7 @@ def check_perft(binary, refgen, sfens, depth):
         ref = [json.loads(x)["nodes"] for x in subprocess.run(
             [refgen, "perft", "--depth", str(d)], input=inp, capture_output=True,
             text=True, check=True).stdout.splitlines()]
-        eng = subprocess.Popen([binary, "batch"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        eng = subprocess.Popen([binary, *REF_RULES, "batch"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                text=True)
         cmds = "".join(f"position sfen {s}\nperft {d}\n" for s in sfens) + "quit\n"
         ours = [int(x.split()[1]) for x in eng.communicate(cmds)[0].splitlines()]

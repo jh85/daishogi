@@ -210,12 +210,17 @@ def engine_outcome_token(status_line):
 
 # ------------------------------------------------------------------ engine
 
+# The reference (haitaka-variants) uses the Normal promotion rule; our
+# default is the chu rule (docs/RULES.md), so every comparison pins it.
+REF_RULES = ["--promotion", "normal"]
+
+
 class Engine:
     """Our binary in batch mode."""
 
     def __init__(self, binary):
         import subprocess
-        self.p = subprocess.Popen([binary, "batch"], stdin=subprocess.PIPE,
+        self.p = subprocess.Popen([binary, *REF_RULES, "batch"], stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE, text=True, bufsize=1)
 
     def ask(self, *lines):

@@ -141,10 +141,12 @@ flying ox 飛牛.
    ignored by the rules and by repetition.
 
 Fields 2–4 may be omitted; the defaults are `b - 1`. The parser rejects
-unknown codes, wrong rank lengths, and unpromoted pieces on squares from
-which they could never move: a pawn, lance, iron or stone general on the last
-rank, or a knight on the last two ranks. It does **not** enforce the
-reference's piece-count limits per side.
+unknown codes and wrong rank lengths. Under `--promotion normal` it also
+rejects unpromoted pieces on squares from which they could never move: a
+pawn, lance, iron or stone general on the last rank, or a knight on the last
+two ranks. Under the default chu rule such dead pieces are legal (see
+[RULES.md](RULES.md), "Promotion"). It does **not** enforce the reference's
+piece-count limits per side.
 
 A SFEN contains spaces, so quote it in the shell.
 

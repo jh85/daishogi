@@ -177,7 +177,8 @@ void writeGameRecord(const GameRecord& rec, const std::string& path) {
     << ",\"full_search_prob\":" << rec.fullSearchProb << ",\"fast_sims\":" << rec.fastSims
     << ",\"mate_nodes\":" << rec.mateNodes << ",\"probe_depth\":" << rec.probeDepth
     << ",\"probe_nodes\":" << rec.probeNodes << ",\"counter_strike\":\""
-    << dai::counterStrikeName(dai::counterStrike()) << "\"},\n";
+    << dai::counterStrikeName(dai::counterStrike()) << "\",\"promotion\":\""
+    << dai::promotionRuleName(dai::promotionRule()) << "\"},\n";
   f << " \"mate_stats\": {\"root_mates\":" << rec.rootMates << ",\"probes\":" << rec.probes
     << ",\"probe_mates\":" << rec.probeMates << ",\"solver_nodes\":" << rec.solverNodes
     << "},\n";

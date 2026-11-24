@@ -56,6 +56,24 @@ const char* counterStrikeName(CounterStrike r) {
   }
 }
 
+#ifndef DAI_PROMOTION
+#define DAI_PROMOTION 0
+#endif
+static_assert(DAI_PROMOTION >= 0 && DAI_PROMOTION <= 1,
+              "DAI_PROMOTION must be 0 (chu) or 1 (normal)");
+PromotionRule gPromotionRule = static_cast<PromotionRule>(DAI_PROMOTION);
+
+bool parsePromotionRule(const std::string& name, PromotionRule& out) {
+  if (name == "chu") out = PromotionRule::Chu;
+  else if (name == "normal") out = PromotionRule::Normal;
+  else return false;
+  return true;
+}
+
+const char* promotionRuleName(PromotionRule r) {
+  return r == PromotionRule::Normal ? "normal" : "chu";
+}
+
 void Position::apply(const Move& m) {
   auto hop = [&](int a, int b) {
     const Piece mover = board[a];

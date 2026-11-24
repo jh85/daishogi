@@ -18,14 +18,18 @@ Where the written sources are silent or ambiguous, this implementation
 follows the reference behaviour exactly, so that the comparison tests are
 meaningful. Each place where the reference's behaviour could be read
 differently from the written rules is listed under
-[Discrepancies and choices](#discrepancies-and-choices). There are two
-deliberate exceptions, both in lion-versus-lion captures by a two-step
-move, where this implementation follows lishogi's chu shogi and the Japan
-Chu Shogi Association (JCSA) instead:
-* a lion adjacent to the start square may always be taken, also on the
-  second step (discrepancy 5);
-* a pawn or go-between taken on the first step no longer blocks a protector
-  (discrepancy 9).
+[Discrepancies and choices](#discrepancies-and-choices). There are three
+deliberate exceptions:
+* **Promotion** follows chu shogi by default (discrepancies 2 and 3). The
+  reference's rule is available as `--promotion normal`, and every
+  comparison with the reference uses it.
+* Two concern lion-versus-lion captures by a two-step move, where this
+  implementation follows lishogi's chu shogi and the Japan Chu Shogi
+  Association (JCSA):
+  * a lion adjacent to the start square may always be taken, also on the
+    second step (discrepancy 5);
+  * a pawn or go-between taken on the first step no longer blocks a
+    protector (discrepancy 9).
 
 ## Board and setup
 
@@ -101,17 +105,60 @@ the first square. Directions are from the moving side's point of view.
 
 ## Promotion
 
-* The promotion zone is the far **five ranks**.
-* A promotable piece **may** promote at the end of any move that **starts
-  or ends** in the zone. This includes moves inside the zone without a
-  capture and moves that leave the zone. The rules keep no memory of an
-  earlier refused promotion. Shogitter calls this the "Normal" method,
-  unlike its chu shogi rule.
-* Promotion is **compulsory** where the unpromoted piece could never move
-  again: a pawn, lance, iron or stone general reaching the last rank, and a
-  knight reaching either of the last two ranks.
-* Promoted pieces never promote again. The king, lion and free king do not
-  promote. Two-step moves never promote.
+The promotion zone is the far **five ranks**. Promoted pieces never
+promote again. The king, lion and free king do not promote. Promotion takes
+effect after the move, so the whole move uses the unpromoted piece's
+movement. (Only lions, falcons and eagles make two-step moves, and none of
+them can promote.)
+
+Two rules are implemented. The default is the chu rule.
+
+**Chu rule** (default, `--promotion chu`). A promotable piece **may**
+promote on a move that:
+* **enters** the zone from outside;
+* **starts** in the zone and **captures** an enemy piece, including a move
+  that leaves the zone to capture outside it;
+* ends where the unpromoted piece could **never move again**: a pawn,
+  lance, iron or stone general on the **last rank**, or a knight on the
+  **last two ranks**.
+
+Every other move may not promote. In particular:
+* a move that leaves the zone without capturing may not promote;
+* a piece that entered the zone without promoting may not promote later by
+  moving inside it without a capture. It may promote again only by
+  capturing, by leaving and re-entering, or by reaching a rank where it
+  could never move again.
+
+Promotion is **never compulsory**. A piece that does not promote where it
+can never move again stays there as a **dead piece** with no legal moves,
+and it can still be captured.
+
+The rule needs no memory of earlier moves. Whether a move may promote
+depends only on its start and end squares and whether it captures.
+
+**Normal rule** (`--promotion normal`, haitaka-variants and Shogitter, which
+call it "Normal"). A promotable piece **may** promote at the end of any move
+that **starts or ends** in the zone. That includes moves inside the zone
+without a capture, and moves that leave it. Promotion is **compulsory** where
+the unpromoted piece could never move again, the same pieces and ranks as
+above, so there are no dead pieces.
+
+| Move (examples in `testPromotionRule`, `tests/unit_tests.cpp`) | Chu | Normal |
+|---|---|---|
+| Enters the zone | may promote | may promote |
+| Starts in the zone and captures (also outside it) | may promote | may promote |
+| Inside the zone, or leaving it, without a capture | **no** | may promote |
+| Pawn, lance, iron or stone to the last rank, or knight to the last two (also inside the zone without a capture) | may promote (if not, the piece is dead) | **must** promote |
+
+* **Runtime:** `daishogi --promotion normal ...` and
+  `daishogi-az --promotion normal` set the rule for the process. Self-play
+  records name it (`"promotion"`).
+* **Compile time:** `make clean && make PROMOTION=normal` changes the
+  default.
+* The comparison tests against the reference (`tests/compare.py`,
+  `replay_games.py`, `live_compare.py`, `mutation_check.py`) pass
+  `--promotion normal` (`REF_RULES` in `tests/refconv.py`). Under the chu
+  rule, 4,427 of the corpus's 14,251 positions have different legal moves.
 * Promotion targets are listed in [FORMAT.md](FORMAT.md). They match
   Shogitter and both Wikipedias.
 
@@ -236,7 +283,8 @@ that protect fewer lions. Both are available for comparison with chu shogi.
   Shogitter, and the reference applies it to the moving piece. Pawns and
   go-betweens never change file, so it can never trigger from the initial
   position. It matters only for set-up positions, where it is enforced
-  exactly like the reference: the moving piece may still promote.
+  exactly like the reference: the moving piece may still promote, if the
+  promotion rule allows that move to promote.
 
 ## Discrepancies and choices
 
@@ -251,11 +299,15 @@ that protect fewer lions. Both are available for comparison with chu shogi.
    inside it. Japanese Wikipedia notes that internet programs use the
    honshogi style. Shogitter and the reference use the honshogi ("Normal")
    style: promotion is allowed on any move starting or ending in the
-   zone. **Implemented: Normal.**
+   zone. **Implemented: both. The chu rule is the default; Normal is
+   `--promotion normal`** (see [Promotion](#promotion)).
 3. **Compulsory promotion.** The Wikipedias only say that unpromoted pieces
    on the last rank(s) would be dead. The reference forbids dead pieces
    (pawn, lance, iron and stone on the last rank; knight on the last two),
-   so promotion is compulsory there. **Implemented: compulsory.**
+   so promotion is compulsory there. **Implemented: never compulsory under
+   the chu rule, as in chu shogi.** A piece that does not promote stays
+   there, dead, and can be captured. Under `--promotion normal` it is
+   compulsory, as in the reference.
 4. **先獅子 versus falcon and eagle two-step moves.** Read literally, 先獅子
    is about whether a lion was taken by a non-lion on the previous move.
    The reference sets the flag from the **last hop** only, and judges each
