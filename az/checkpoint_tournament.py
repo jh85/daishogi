@@ -22,7 +22,7 @@ import subprocess
 import sys
 import time
 
-from eval_match import PLY_CAP, ROOT, Player, play_game, random_player
+from eval_match import PLY_CAP, ROOT, Player, play_game, random_player, rule_args
 
 
 def unique_checkpoints(paths):
@@ -61,6 +61,9 @@ def main():
     ap.add_argument('--seed', type=int, default=20261021)
     ap.add_argument('--az', default=str(ROOT / 'daishogi-az'))
     ap.add_argument('--gen', default=str(ROOT / 'daishogi'))
+    ap.add_argument('--promotion', choices=['chu', 'normal'], default='',
+                    help="promotion rule passed to every engine, referee included "
+                         "(default: the binaries' compiled-in rule; see docs/RULES.md)")
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
     if len(a.checkpoints) < 2 or min(a.pairs, a.sims, a.workers) <= 0:
@@ -109,9 +112,9 @@ def main():
             players = []
             try:
                 for port in (ports[later], ports[earlier]):
-                    players.append(Player(a.az, search_command(a.sims, a.mate_nodes, a.probe_depth, a.probe_nodes), port=port))
-                players.append(random_player(a.gen))
-                players.append(random_player(a.gen, seed=a.seed+pair))
+                    players.append(Player([a.az, *rule_args(a.promotion)], search_command(a.sims, a.mate_nodes, a.probe_depth, a.probe_nodes), port=port))
+                players.append(random_player(a.gen, rules=rule_args(a.promotion)))
+                players.append(random_player(a.gen, seed=a.seed+pair, rules=rule_args(a.promotion)))
                 records = []
                 for color in (0, 1):
                     players[3].cmd(f'seed {a.seed+pair}', 'ok')

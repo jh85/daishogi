@@ -16,6 +16,8 @@ def game_jobs(workers, games, seed, iteration):
 
 
 def run_dynamic(binary, ports, workers, games, seed, iteration, output, options):
+    # binary: the engine path, or a command list (path plus rule arguments)
+    engine=[binary] if isinstance(binary,str) else list(binary)
     jobs=queue.Queue()
     for job in game_jobs(workers,games,seed,iteration):jobs.put(job)
     stop=threading.Event()
@@ -28,7 +30,7 @@ def run_dynamic(binary, ports, workers, games, seed, iteration, output, options)
             command=(f'selfplay --games 1 --seed {game_seed} --out {directory} '
                      f'--eval pipe --port {ports[slot%len(ports)]} {options}\nquit\n')
             try:
-                with subprocess.Popen([binary],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
+                with subprocess.Popen(engine,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,text=True) as proc:
                     stdout,stderr=proc.communicate(command)
                 match=re.search(r'game 0: (\d+) plies',stdout)

@@ -103,6 +103,17 @@ left out (USI play, experiment scripts) are not ported.
 | `train_test.py` | `az_train_test` | training, exact optimizer resume, the checkpoint drives a game |
 | `*_test.py` (unittest) | buffer, legal-policy, eval-output, batcher, optimizers, pool, tournament | 32-bit indices above 65,535, fp16 wire values, batching, optimizer migration, job seeds |
 
+**Rules.** The engines play the compiled-in rules: the chu promotion rule
+by default since commit `e9a79e0` (docs/RULES.md, "Promotion"). `run_loop.py`,
+`eval_match.py` and `checkpoint_tournament.py` take `--promotion chu|normal`
+and pass it to every engine they start: self-play workers, players, and the
+`./daishogi` referee. Players and referee must agree, since the referee rejects
+a move its rule does not allow. run1–run4 were trained under the Normal rule;
+run4 runs with `--promotion normal` from iteration 172 (before that, from
+iteration 163, on a frozen copy of the pre-change binary). Their checkpoints
+should be evaluated with `--promotion normal` too. Self-play records name the
+rule (`"promotion"`; records without it are Normal).
+
 Running:
 
 ```sh

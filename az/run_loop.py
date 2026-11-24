@@ -114,6 +114,8 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--python", default=sys.executable,
                     help="interpreter for eval_server.py / train.py")
+    ap.add_argument("--promotion", choices=["chu", "normal"], default="",
+                    help="promotion rule passed to every engine, referee included (default: the binaries' compiled-in rule; see docs/RULES.md)")
     ap.add_argument("--resume", action="store_true",
                     help="continue iteration numbering after existing "
                          "iter_*.pt checkpoints in the run dir")
@@ -131,6 +133,7 @@ def main():
     if not math.isfinite(a.muon_lr_scale) or a.muon_lr_scale <= 0 or a.muon_warmup_steps < 0:
         ap.error("invalid Muon scale/warmup")
     a.az = str(Path(a.az).resolve())
+    engine = [a.az] + (["--promotion", a.promotion] if a.promotion else [])
 
     run = Path(a.run_dir).resolve()
     games_dir = run / "games"
@@ -204,7 +207,7 @@ def main():
                 options=(f"--temp-plies {a.temp_plies} --sims {a.sims} --batch {a.batch} "
                          f"--root-policy-temp {a.root_policy_temp}"
                          f" --full-prob {a.full_prob} --fast-sims {a.fast_sims}{mate}")
-                total_plies,total_games=run_dynamic(a.az,[s[0] for s in servers],a.workers,a.games,
+                total_plies,total_games=run_dynamic(engine,[s[0] for s in servers],a.workers,a.games,
                     a.seed,it,games_dir/f"iter_{it:06d}",options)
             else:
                 procs = []
@@ -213,7 +216,7 @@ def main():
                     # otherwise overwrite old games after PID reuse.
                     worker_dir = games_dir / f"iter_{it:06d}" / f"worker_{w:04d}"
                     port = servers[w % len(servers)][0]
-                    p = subprocess.Popen([a.az], stdin=subprocess.PIPE,
+                    p = subprocess.Popen(engine, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, text=True)
                     seed = a.seed + it * 100003 + w * 101
                     p.stdin.write(
@@ -298,6 +301,7 @@ def main():
                          "--mate-nodes", str(a.mate_nodes), "--probe-depth", str(a.probe_depth),
                          "--probe-nodes", str(a.probe_nodes), "--workers",
                          str(a.strength_workers), "--az", a.az,
+                         *(["--promotion", a.promotion] if a.promotion else []),
                          "--eval-max-batch", str(a.eval_max_batch),
                          "--eval-batch-wait-ms", str(a.eval_batch_wait_ms),
                          *(["--eval-tcp-nodelay"] if a.eval_tcp_nodelay else []),

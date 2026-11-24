@@ -76,8 +76,13 @@ class Player:
         self.proc.wait(timeout=10)
 
 
-def random_player(binary, seed=None):
-    return Player([binary, "batch"], "go random", seed=seed)
+def rule_args(promotion):
+    """Engine command-line arguments for the rule variant ("" = default)."""
+    return ["--promotion", promotion] if promotion else []
+
+
+def random_player(binary, seed=None, rules=()):
+    return Player([binary, *rules, "batch"], "go random", seed=seed)
 
 
 def adjudicate(ref):
@@ -153,6 +158,8 @@ def main():
     ap.add_argument("--mate-nodes", type=int, default=5000, help="root mate budget; 0 disables")
     ap.add_argument("--probe-depth", type=int, default=3, help="in-tree mate depth; 0 disables")
     ap.add_argument("--probe-nodes", type=int, default=2000)
+    ap.add_argument("--promotion", choices=["chu", "normal"], default="",
+                    help="promotion rule passed to every engine, referee included (default: the binaries' compiled-in rule; see docs/RULES.md)")
     a = ap.parse_args()
     if a.games <= 0 or (a.paired_openings and a.games % 2):
         ap.error("games must be positive and even for paired openings")
@@ -160,15 +167,17 @@ def main():
     extra = f" --temp-plies {a.temp_plies}" if a.temp_plies else ""
     extra += (f" --mate-nodes {a.mate_nodes} --probe-depth {a.probe_depth}"
               f" --probe-nodes {a.probe_nodes}")
-    az = Player(a.az, f"go az --sims {a.sims}{extra}", port=a.port)
+    rules = rule_args(a.promotion)
+    az = Player([a.az, *rules], f"go az --sims {a.sims}{extra}", port=a.port)
     if a.port2 is not None:
-        opp = Player(a.az, f"go az --sims {a.sims}{extra}", port=a.port2)
+        opp = Player([a.az, *rules], f"go az --sims {a.sims}{extra}", port=a.port2)
         opp_name = f"az@{a.port2}"
     else:
-        opp = random_player(a.gen, seed=a.seed)
+        opp = random_player(a.gen, seed=a.seed, rules=rules)
         opp_name = "random"
-    ref = random_player(a.gen)  # referee; never asked for moves
-    div = random_player(a.gen, seed=a.seed * 1000003 + 7) if a.opening_plies else None
+    ref = random_player(a.gen, rules=rules)  # referee; never asked for moves
+    div = (random_player(a.gen, seed=a.seed * 1000003 + 7, rules=rules)
+           if a.opening_plies else None)
     players = [p for p in (az, opp, ref, div) if p is not None]
 
     score = 0.0
