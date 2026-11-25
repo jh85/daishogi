@@ -24,7 +24,7 @@ DAISHOGI = str(Path(__file__).resolve().parents[1] / "daishogi")
 
 ckpt, path = sys.argv[1:3]
 state = torch.load(ckpt, map_location='cpu', weights_only=True)
-net = M.DaiNet(**M.net_config(state)); net.load_state_dict(state['model'] if 'model' in state else state)
+net = M.DaiNet(**M.net_config(state)); M.load_weights(net, state['model'] if 'model' in state else state)
 net = net.cuda().eval()
 
 def canon(usi, gote):

@@ -75,7 +75,8 @@ az-test: $(BIN) $(AZBIN) $(AZTESTS) $(MATETEST)
 	$(AZPY) -m unittest tests/az/buffer_test.py tests/az/legal_policy_test.py \
 	  tests/az/eval_output_test.py tests/az/inference_batcher_test.py \
 	  tests/az/optimizers_test.py tests/az/selfplay_pool_test.py tests/az/tournament_test.py \
-	  tests/az/material_test.py tests/az/puzzle_test.py tests/az/value_fraction_test.py
+	  tests/az/material_test.py tests/az/puzzle_test.py tests/az/value_fraction_test.py \
+	  tests/az/material_head_test.py
 	$(AZPY) tests/az/encode_test.py
 	$(AZPY) tests/az/selfplay_test.py
 	$(AZPY) tests/az/selfplay_test.py --full-prob 0.25

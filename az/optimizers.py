@@ -66,10 +66,29 @@ class Optimizers:
             self.muon_updates = int(saved['muon_updates'])
             self.migration = 'restored_muon_and_adamw'
         elif self.kind == 'adamw':
-            if checkpoint.get('optimizer_param_names', self.names) != self.names:
-                raise ValueError('AdamW checkpoint parameter ordering mismatch')
-            self.adamw.load_state_dict(saved)
-            self.migration = 'restored_adamw'
+            source_names = checkpoint.get('optimizer_param_names', self.names)
+            if source_names == self.names:
+                self.adamw.load_state_dict(saved)
+                self.migration = 'restored_adamw'
+            else:
+                # The network gained parameters (e.g. the material head):
+                # restore the others' moments by name, start the new ones fresh.
+                ids = saved['param_groups'][0]['params']
+                if (len(saved['param_groups']) != 1 or len(ids) != len(source_names)
+                        or not set(source_names) < set(self.names)):
+                    raise ValueError('AdamW checkpoint parameter ordering mismatch')
+                source = dict(zip(source_names, ids))
+                target = self.adamw.state_dict()
+                destination_ids = target['param_groups'][0]['params']
+                for name, destination in zip(self.names, destination_ids):
+                    if name in source and source[name] in saved['state']:
+                        target['state'][destination] = copy.deepcopy(saved['state'][source[name]])
+                group = copy.deepcopy(saved['param_groups'][0])
+                group['params'] = destination_ids
+                group.pop('param_names', None)
+                target['param_groups'] = [group]
+                self.adamw.load_state_dict(target)
+                self.migration = 'restored_adamw_new_parameters_fresh'
         else:
             # Legacy checkpoints used net.parameters() in a single AdamW group.
             if len(saved['param_groups']) != 1:

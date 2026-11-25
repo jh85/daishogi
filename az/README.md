@@ -412,6 +412,27 @@ settings are run4's final ones: material scoring of capped games
 240 training steps per iteration. run4 stopped after iteration 172 and can be
 resumed with `--promotion honshogi`.
 
+From iteration 83, run5 also trains an auxiliary **material head**
+(`--material-weight 1.0 --material-horizon 64`). Self-play records the
+material balance after every ply (`"material"`, Sente minus Gote, the values
+of `az/material.py`). Each position's target is the change over the next 64
+plies (or to the end of the game), from the side to move's view, as
+`tanh(change / one army / 0.05)`: about +0.96 for a lion won, +0.08 for a
+pawn. The head (`mpool`/`mfc` in `model.py`) is trained with squared error
+and shapes the trunk only; the search never reads it. Unlike the
+material-scored value target of capped games, which labels every position
+with the balance at ply 1,500, this target lies within 64 plies of the moves
+that caused it. On 30 run5 games, 27% of positions see a material change
+within 64 plies, 14% a large one (|t| > 0.3); the target variance is 0.083.
+Checkpoints from before the head load with it untrained, and AdamW restores
+the other parameters' moments by name. `heldout_loss.py` reports the head on
+unseen games.
+
+The first attempt crashed run5 after iteration 82: its trainer, started
+afresh each iteration, picked up the new model code and saved the head,
+which the eval server, still running the old code, could not load. A running
+loop has to be stopped before code it imports changes.
+
 ## Open points
 
 1. **Value generalization.** run4's value head does not yet beat a

@@ -5,6 +5,10 @@ Ported from ../chushogi (az/train.py, commit d578c81).
 
 Loss = soft cross-entropy on the visit-count policy target
      + value_weight * cross-entropy on the WDL value target.
+With --material-weight w > 0, it adds w * the squared error of the
+material head against the short-horizon material change (--material-horizon
+plies, az/material.py change_target), on rows whose record has a material
+trajectory.
 With --value-fraction f < 1, the value term covers only a random share f of
 each batch's self-play rows (puzzle rows keep it), still divided by the full
 batch: a game's positions share one result, and training the value head on
@@ -60,6 +64,12 @@ def main():
     ap.add_argument("--lam", type=float, default=0.5,
                     help="search-Q share of the blended target")
     ap.add_argument("--value-weight", type=float, default=1.0)
+    ap.add_argument("--material-weight", type=float, default=0.0,
+                    help="weight of the auxiliary short-horizon material loss (0 = off)")
+    ap.add_argument("--material-horizon", type=int, default=64,
+                    help="plies ahead for the material change target")
+    ap.add_argument("--material-scale", type=float, default=0.05,
+                    help="change (share of one army) at which the target reaches tanh(1)")
     ap.add_argument("--value-fraction", type=float, default=1.0,
                     help="value loss on this random share of each batch's self-play rows")
     ap.add_argument("--puzzle-dirs", nargs="*", default=[],
@@ -94,6 +104,8 @@ def main():
     a = ap.parse_args()
     if not 0 <= a.value_fraction <= 1:
         ap.error("--value-fraction must be in [0, 1]")
+    if a.material_weight < 0 or a.material_horizon <= 0 or a.material_scale <= 0:
+        ap.error("--material-weight must be >= 0, horizon and scale positive")
 
     torch.manual_seed(a.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -108,7 +120,7 @@ def main():
             a.d_model, a.blocks, a.heads = cfg["d_model"], cfg["blocks"], cfg["heads"]
     net = M.DaiNet(a.d_model, a.blocks, a.heads).to(device)
     if state:
-        net.load_state_dict(state["model"] if "model" in state else state)
+        M.load_weights(net, state["model"] if "model" in state else state)
         loaded_step = int(state.get("step", 0)) if "model" in state else 0
         print(f"[train] init from {a.init_from}", flush=True)
     if a.step0 < 0:
@@ -128,9 +140,17 @@ def main():
         t = (step - a.warmup_steps) / max(decay - a.warmup_steps, 1)
         return 1e-4 + 0.5 * (a.lr - 1e-4) * (1 + np.cos(np.pi * min(t, 1)))
 
+    use_mat = a.material_weight > 0
     buf = B.Buffer(a.games_dirs, a.max_positions, sample_fraction=a.sample_fraction,
-                   cap_score_max=a.cap_score_max, cap_score_scale=a.cap_score_scale)
+                   cap_score_max=a.cap_score_max, cap_score_scale=a.cap_score_scale,
+                   material_horizon=a.material_horizon if use_mat else 0,
+                   material_scale=a.material_scale)
     print(f"[train] buffer: {len(buf)} positions", flush=True)
+    if use_mat:
+        have = np.isfinite(buf.mat_t)
+        print(f"[train] material targets: {int(have.sum())} positions "
+              f"(horizon {a.material_horizon}, mean |t| {np.abs(buf.mat_t[have]).mean() if have.any() else 0:.3f})",
+              flush=True)
     if len(buf) < a.batch:
         print("[train] not enough data", flush=True)
         return 1
@@ -159,12 +179,20 @@ def main():
             packed, prog = np.concatenate([packed, pp]), np.concatenate([prog, pprog])
             pol_idx, pol_p = pol_idx + ppi, pol_p + ppp
             tv = np.concatenate([tv, p_targets[pidx]])
+        if use_mat:  # puzzle rows have no material target
+            tm = np.full(a.batch, np.nan, dtype=np.float32)
+            tm[:n_game] = buf.mat_t[idx]
+            mrows = torch.from_numpy(np.isfinite(tm)).to(device)
+            target_m = torch.from_numpy(np.nan_to_num(tm)).to(device)
         planes = M.unpack_batch_device(packed.tobytes(), prog, device)
         target_v = torch.from_numpy(tv).to(device)
         vrows = torch.from_numpy(value_rows(rng, n_game, a.batch, a.value_fraction)).to(device)
 
         with amp():
-            policy, wdl = net(planes)
+            if use_mat:
+                policy, wdl, mat = net(planes, material=True)
+            else:
+                policy, wdl = net(planes)
         logp = F.log_softmax(policy.float(), dim=1)
         # sparse soft cross-entropy over the visited moves
         bi = torch.from_numpy(np.concatenate(
@@ -181,6 +209,10 @@ def main():
         loss_v = per_v.sum() / a.batch
         v_mean = per_v.sum() / vrows.sum().clamp(min=1)  # reported: per value row
         loss = loss_p + a.value_weight * loss_v
+        if use_mat:
+            per_m = (mat.float() - target_m) ** 2 * mrows
+            loss = loss + a.material_weight * per_m.sum() / a.batch
+            m_mean = per_m.sum() / mrows.sum().clamp(min=1)  # reported: per row with a target
 
         if not torch.isfinite(loss):
             raise RuntimeError(f"nonfinite loss at step {step}")
@@ -192,6 +224,7 @@ def main():
         if step % a.log_every == 0:
             print(f"[train] step {step} loss {loss.item():.4f} "
                   f"(p {loss_p.item():.4f} v {v_mean.item():.4f}) "
+                  + (f"m {m_mean.item():.4f} " if use_mat else "") +
                   f"lr {lr_at(step):.2e} "
                   f"({(time.time() - t0) / (step - a.step0 + 1):.2f}s/step)",
                     flush=True)

@@ -8,6 +8,9 @@ Ported from ../chushogi (az/model.py, commit d578c81), resized for the
     matrix (x2: normal + promotion), plus a per-square MLP producing the
     64 double-move (two-step lion-power) logits per from-square
   - value head: pooled -> 3-way WDL
+  - material head (training only): pooled -> tanh scalar, the short-horizon
+    material change (az/material.py change_target). An auxiliary target in
+    the KataGo sense: it shapes the trunk; the search never reads it.
 
 Policy layout (115,650): [from-to 50,625 | from-to-promote 50,625 |
 double-move 14,400], matching src/az/encode.cpp.
@@ -59,9 +62,13 @@ class DaiNet(nn.Module):
         self.vpool = nn.Linear(d_model, 8)
         self.vfc = nn.Sequential(nn.Linear(8 * BOARD, 256), nn.GELU(),
                                  nn.Linear(256, 3))
+        self.mpool = nn.Linear(d_model, 4)
+        self.mfc = nn.Sequential(nn.Linear(4 * BOARD, 128), nn.GELU(),
+                                 nn.Linear(128, 1))
 
-    def forward(self, planes):
-        """planes: (B, 114, 15, 15) -> (policy logits (B, 115650), wdl (B, 3))."""
+    def forward(self, planes, material=False):
+        """planes: (B, 114, 15, 15) -> (policy logits (B, 115650), wdl (B, 3)),
+        plus the material head's (B,) prediction in (-1, 1) if `material`."""
         b = planes.shape[0]
         x = planes.reshape(b, NUM_PLANES, BOARD).permute(0, 2, 1)  # B,225,114
         x = self.embed(x) + self.pos
@@ -75,7 +82,24 @@ class DaiNet(nn.Module):
                             dbl.reshape(b, -1)], dim=1)
         v = self.vpool(x).reshape(b, 8 * BOARD)
         wdl = self.vfc(v)
+        if material:
+            m = torch.tanh(self.mfc(self.mpool(x).reshape(b, 4 * BOARD))).squeeze(1)
+            return policy, wdl, m
         return policy, wdl
+
+
+AUX_PREFIXES = ("mpool.", "mfc.")
+
+
+def load_weights(net, state_dict):
+    """Load a checkpoint's weights. Checkpoints from before the material head
+    lack its weights; those keep their fresh initialization.
+    -> True if the material head was in the checkpoint (i.e. trained)."""
+    missing, unexpected = net.load_state_dict(state_dict, strict=False)
+    bad = [k for k in missing if not k.startswith(AUX_PREFIXES)]
+    if bad or unexpected:
+        raise RuntimeError(f"checkpoint mismatch: missing {bad}, unexpected {unexpected}")
+    return not missing
 
 
 def net_config(state):

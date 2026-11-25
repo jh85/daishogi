@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "az"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np  # noqa: E402
+import material as MT  # noqa: E402
 
 import encode as enc  # noqa: E402
 from encode_test import Cli, state  # noqa: E402
@@ -109,6 +110,15 @@ def main():
         final = gen.cmd("sfen")[5:]
         if rec.get("final") != final:
             fail(f"{path.name}: final {rec.get('final')} vs replay {final}")
+        # The material trajectory: one entry per position, matching
+        # az/material.py at both ends.
+        total += 1
+        bal = rec.get("material", [])
+        s0, g0 = MT.material(rec["initial"])
+        s1, g1 = MT.material(final)
+        if len(bal) != len(moves) + 1 or bal[0] != s0 - g0 or bal[-1] != s1 - g1:
+            fail(f"{path.name}: material trajectory (len {len(bal)}, ends "
+                 f"{bal[:1]} {bal[-1:]}) vs {len(moves) + 1} positions, {s0 - g0}, {s1 - g1}")
 
         total += 1
         plies = [smp["ply"] for smp in rec["samples"]]

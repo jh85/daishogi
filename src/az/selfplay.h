@@ -48,6 +48,9 @@ struct GameRecord {
   std::string initialSfen;
   std::vector<std::string> moves;  // USI, original frame
   std::string finalSfen;           // position at the end (material scoring of capped games)
+  // Material balance, Sente minus Gote (HaChu values, as az/material.py),
+  // of every position of the game: [0] the initial one, [i] after ply i.
+  std::vector<int> material;
   std::vector<Sample> samples;
   int result = 0;  // 1 = sente wins, -1 = gote wins, 0 = draw
   std::string reason;  // royals | nomoves | repetition | perpetual | plycap

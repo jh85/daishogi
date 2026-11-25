@@ -71,7 +71,7 @@ class Server:
         if config != self.net_config:  # a run trained with a non-default size
             self.net = self.place(M.DaiNet(**config))
             self.net_config = config
-        self.net.load_state_dict(state["model"] if "model" in state else state)
+        M.load_weights(self.net, state["model"] if "model" in state else state)
         self.mtime = mt
         print(f"[eval] loaded {self.checkpoint} (step {state.get('step', '?')})",
               flush=True)

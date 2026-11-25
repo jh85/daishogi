@@ -102,6 +102,27 @@ def cap_score(initial_sfen, final_sfen, max_score=DEFAULT_MAX_SCORE,
     return max_score * math.tanh((s - g) / army / scale)
 
 
+DEFAULT_HORIZON = 64
+DEFAULT_CHANGE_SCALE = 0.05
+
+
+def change_target(balance, ply, stm, army, horizon=DEFAULT_HORIZON,
+                  scale=DEFAULT_CHANGE_SCALE):
+    """Short-horizon material target of the position at `ply`.
+
+    balance: the record's "material" list (Sente minus Gote after each ply,
+    [0] the initial position). The change over the next `horizon` plies, or
+    to the end of the game if it ends sooner, from the side to move's view
+    (stm 0 = Sente), as a share of one army: tanh(change / army / scale),
+    in (-1, 1). A lion won (1000, ~10% of an army) gives about +0.96, a
+    pawn (40) about +0.08."""
+    end = min(ply + horizon, len(balance) - 1)
+    change = balance[end] - balance[ply]
+    if stm:
+        change = -change
+    return math.tanh(change / army / scale)
+
+
 def wdl(t):
     """Score t (side to move's view) -> [win, draw, loss] target."""
     return [t, 1.0 - t, 0.0] if t >= 0 else [0.0, 1.0 + t, -t]

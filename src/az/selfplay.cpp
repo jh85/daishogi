@@ -3,6 +3,10 @@
 #include "selfplay.h"
 
 #include <algorithm>
+#include <array>
+#include <map>
+#include <stdexcept>
+#include <string>
 #include <cstdio>
 #include <fstream>
 #include <random>
@@ -43,6 +47,43 @@ std::string jsonEscape(const std::string& s) {
 std::string reasonOf(const dai::Status& st) {
   const std::string token = dai::statusToken(st);
   return token.substr(token.rfind(' ') + 1);
+}
+
+// HaChu's dai shogi piece values, the table az/material.py uses (see its
+// docstring); tests/az/selfplay_test.py checks that both agree.
+int materialValue(dai::Kind k) {
+  static const std::array<int, dai::KindCount> table = [] {
+    const std::map<std::string, int> v = {
+        {"PA", 40}, {"LA", 150}, {"KN", 60}, {"SI", 100}, {"GO", 151}, {"BI", 250},
+        {"RO", 300}, {"KI", 280}, {"DH", 350}, {"DK", 400}, {"LI", 1000}, {"DE", 201},
+        {"CO", 100}, {"FL", 150}, {"RC", 150}, {"BT", 152}, {"KR", 154}, {"PH", 153},
+        {"GB", 50}, {"SM", 200}, {"VM", 200}, {"FK", 600}, {"IR", 80}, {"ST", 50},
+        {"EW", 80}, {"AB", 60}, {"CS", 70}, {"VO", 200}, {"FD", 150},
+        // promoted kinds: the value of the piece they move as
+        {"+PA", 151}, {"+KN", 151}, {"+IR", 151}, {"+ST", 151}, {"+EW", 151},
+        {"+AB", 151}, {"+CS", 151}, {"+VO", 151}, {"+FD", 151}, {"+LA", 350},
+        {"+SI", 200}, {"+GO", 300}, {"+BI", 350}, {"+RO", 400}, {"+DH", 500},
+        {"+DK", 550}, {"+DE", 270}, {"+CO", 200}, {"+FL", 250}, {"+RC", 250},
+        {"+BT", 300}, {"+KR", 1000}, {"+PH", 600}, {"+GB", 201}, {"+SM", 400},
+        {"+VM", 400}};
+    std::array<int, dai::KindCount> t{};
+    for (int k = 0; k < dai::KindCount; ++k) {
+      const auto it = v.find(dai::info(static_cast<dai::Kind>(k)).code);
+      if (it == v.end())
+        throw std::logic_error("no material value for " + dai::info(static_cast<dai::Kind>(k)).code);
+      t[k] = it->second;
+    }
+    return t;
+  }();
+  return table[k];
+}
+
+// Sente's material minus Gote's.
+int materialBalance(const dai::Position& pos) {
+  int b = 0;
+  for (const dai::Piece p : pos.board)
+    if (p) b += (dai::colorOf(p) == dai::Sente ? 1 : -1) * materialValue(dai::kindOf(p));
+  return b;
 }
 
 }  // namespace
@@ -101,6 +142,7 @@ GameRecord playGame(const std::string& initialSfen, const SelfplayConfig& cfg,
   while (true) {
     const dai::Position& pos = game.current();
     const int plies = static_cast<int>(game.plies());
+    rec.material.push_back(materialBalance(pos));
     // Adjudication: the game rules, then the ply cap.
     const dai::Status st = game.status();
     if (st.outcome != dai::Outcome::Ongoing) {
@@ -188,6 +230,8 @@ void writeGameRecord(const GameRecord& rec, const std::string& path) {
     << "\",\n \"moves\": [";
   for (size_t i = 0; i < rec.moves.size(); ++i)
     f << (i ? ", " : "") << "\"" << rec.moves[i] << "\"";
+  f << "],\n \"material\": [";
+  for (size_t i = 0; i < rec.material.size(); ++i) f << (i ? ", " : "") << rec.material[i];
   f << "],\n \"samples\": [\n";
   for (size_t i = 0; i < rec.samples.size(); ++i) {
     const Sample& s = rec.samples[i];

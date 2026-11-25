@@ -30,7 +30,9 @@ class OptimizerTest(unittest.TestCase):
         matrices,aux=partition_parameters(self.net)
         self.assertEqual(len(matrices),4)
         self.assertEqual(len(hybrid.muon.state),0)
-        for _,p in aux:
+        for n,p in aux:
+            if n.startswith(('mpool.','mfc.')):  # the material head: unused here, no moments
+                self.assertNotIn(p,old.state);continue
             for k in ['step','exp_avg','exp_avg_sq']:
                 torch.testing.assert_close(hybrid.adamw.state[p][k],old.state[p][k],rtol=0,atol=0)
         self.assertTrue(all(n.startswith('trunk.') and p.ndim==2 for n,p in matrices))
