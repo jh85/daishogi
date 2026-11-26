@@ -120,6 +120,9 @@ def main():
                     help="interpreter for eval_server.py / train.py")
     ap.add_argument("--promotion", choices=["chu", "honshogi"], default="",
                     help="promotion rule passed to every engine, referee included (default: the binaries' compiled-in rule; see docs/RULES.md)")
+    ap.add_argument("--ply-cap", type=int, default=1500,
+                    help="game draw cap in plies for self-play and tournaments "
+                         "(daishogi-az --ply-cap; the network's progress plane is ply / cap)")
     ap.add_argument("--resume", action="store_true",
                     help="continue iteration numbering after existing "
                          "iter_*.pt checkpoints in the run dir")
@@ -137,7 +140,8 @@ def main():
     if not math.isfinite(a.muon_lr_scale) or a.muon_lr_scale <= 0 or a.muon_warmup_steps < 0:
         ap.error("invalid Muon scale/warmup")
     a.az = str(Path(a.az).resolve())
-    engine = [a.az] + (["--promotion", a.promotion] if a.promotion else [])
+    engine = ([a.az] + (["--promotion", a.promotion] if a.promotion else [])
+              + (["--ply-cap", str(a.ply_cap)] if a.ply_cap != 1500 else []))
 
     run = Path(a.run_dir).resolve()
     games_dir = run / "games"
@@ -308,6 +312,7 @@ def main():
                          "--probe-nodes", str(a.probe_nodes), "--workers",
                          str(a.strength_workers), "--az", a.az,
                          *(["--promotion", a.promotion] if a.promotion else []),
+                         "--ply-cap", str(a.ply_cap),
                          "--eval-max-batch", str(a.eval_max_batch),
                          "--eval-batch-wait-ms", str(a.eval_batch_wait_ms),
                          *(["--eval-tcp-nodelay"] if a.eval_tcp_nodelay else []),

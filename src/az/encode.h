@@ -12,7 +12,7 @@
 //   plane  110      : one-hot on the lion-capture square (先獅子 state)
 //   plane  111      : broadcast 1 if the position occurred once before
 //   plane  112      : broadcast 1 if it occurred twice or more before
-//   plane  113      : broadcast ply / kPlyCap (draw-cap progress)
+//   plane  113      : broadcast ply / plyCap() (draw-cap progress)
 //
 // Policy space (115,650 logits): the from x to matrix (225 x 225 = 50,625),
 // a second from x to matrix for promotions, and a from x midDir(8) x
@@ -44,8 +44,12 @@ constexpr int kNumPlanes = kProgressPlane + 1;                 // 114
 constexpr int kBinaryPlanes = kProgressPlane;                  // 0..112
 
 // Game length cap (plies from the game start): reaching it is a draw. The
-// progress plane is ply / kPlyCap.
+// progress plane is ply / plyCap(). kPlyCap is the default; a process may set
+// another once at startup (daishogi-az --ply-cap N). Self-play, the search's
+// draw horizon and the progress plane all use plyCap().
 constexpr int kPlyCap = 1500;
+int plyCap();
+void setPlyCap(int plies);
 
 // Move <-> policy index. Moves must be in the canonical (flipped) frame.
 int moveToIndex(const dai::Move& m);

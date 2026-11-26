@@ -28,7 +28,7 @@ INITIAL = ("laknstircosigokigosicoirstknla/rc1cs1fl1btdebt1fl1cs1rc/"
            "PAPAPAPAPAPAPAPAPAPAPAPAPAPAPA/ROFDSMVMBIDHDKFKDKDHBIVMSMFDRO/"
            "1VO1AB1EWKRLIPHEW1AB1VO1/RC1CS1FL1BTDEBT1FL1CS1RC/"
            "LAKNSTIRCOSIGOKIGOSICOIRSTKNLA b - 1")
-PLY_CAP = 1500  # = kPlyCap in src/az/encode.h
+PLY_CAP = 1500  # = kPlyCap in src/az/encode.h, the default cap
 
 
 class Player:
@@ -95,8 +95,13 @@ def adjudicate(ref):
     return None, status[1]  # draw
 
 
+def az_args(ply_cap):
+    """daishogi-az arguments for a non-default draw cap."""
+    return ["--ply-cap", str(ply_cap)] if ply_cap != PLY_CAP else []
+
+
 def play_game(az, opp, ref, az_color, seed_base, opening_plies=0, div=None,
-              moves=None):
+              moves=None, ply_cap=PLY_CAP):
     """az_color: 0 = az plays sente. Returns (1/0.5/0 from AZ's view, reason)."""
     players = [az, opp] if az_color == 0 else [opp, az]
     # Reseed the net players per game so temperature sampling differs.
@@ -109,7 +114,7 @@ def play_game(az, opp, ref, az_color, seed_base, opening_plies=0, div=None,
     def result():
         end = adjudicate(ref)
         if end is None:
-            return (0.5, "moveLimit") if len(moves) >= PLY_CAP else None
+            return (0.5, "moveLimit") if len(moves) >= ply_cap else None
         winner, reason = end
         if winner is None:
             return 0.5, reason
@@ -160,7 +165,11 @@ def main():
     ap.add_argument("--probe-nodes", type=int, default=2000)
     ap.add_argument("--promotion", choices=["chu", "honshogi"], default="",
                     help="promotion rule passed to every engine, referee included (default: the binaries' compiled-in rule; see docs/RULES.md)")
+    ap.add_argument("--ply-cap", type=int, default=PLY_CAP,
+                    help="game draw cap in plies; passed to the AZ engines (daishogi-az --ply-cap)")
     a = ap.parse_args()
+    if a.ply_cap <= 0:
+        ap.error("--ply-cap must be positive")
     if a.games <= 0 or (a.paired_openings and a.games % 2):
         ap.error("games must be positive and even for paired openings")
 
@@ -168,9 +177,10 @@ def main():
     extra += (f" --mate-nodes {a.mate_nodes} --probe-depth {a.probe_depth}"
               f" --probe-nodes {a.probe_nodes}")
     rules = rule_args(a.promotion)
-    az = Player([a.az, *rules], f"go az --sims {a.sims}{extra}", port=a.port)
+    az = Player([a.az, *rules, *az_args(a.ply_cap)], f"go az --sims {a.sims}{extra}", port=a.port)
     if a.port2 is not None:
-        opp = Player([a.az, *rules], f"go az --sims {a.sims}{extra}", port=a.port2)
+        opp = Player([a.az, *rules, *az_args(a.ply_cap)], f"go az --sims {a.sims}{extra}",
+                     port=a.port2)
         opp_name = f"az@{a.port2}"
     else:
         opp = random_player(a.gen, seed=a.seed, rules=rules)
@@ -190,7 +200,7 @@ def main():
                 div.cmd(f"seed {a.seed * 1000003 + g // 2}", "ok")
             moves = []
             pts, reason = play_game(az, opp, ref, az_color, a.seed + g,
-                                    a.opening_plies, div, moves)
+                                    a.opening_plies, div, moves, ply_cap=a.ply_cap)
             records.append(dict(game=g, az_color=az_color, score=pts,
                                 reason=reason, moves=moves))
             if a.json_out:

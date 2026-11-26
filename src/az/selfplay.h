@@ -26,7 +26,7 @@ struct Sample {
   int ply = 0;
   int stm = 0;                        // 0 = sente, 1 = gote (original frame)
   std::vector<uint8_t> packedPlanes;  // binary planes (progress separate)
-  float progress = 0.f;               // ply / kPlyCap
+  float progress = 0.f;               // ply / plyCap()
   std::vector<std::pair<int32_t, float>> policy;
   float rootQ = 0.5f;
   float a0gb = 0.5f;

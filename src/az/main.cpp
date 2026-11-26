@@ -5,6 +5,7 @@
 // now: the USI engine mode (usi_mode.*) and the root audit commands.
 //
 // Usage: daishogi-az [--counter-strike all|lishogi|jcsa] [--promotion chu|honshogi]
+//                    [--ply-cap N]  (game draw cap, default 1500; see encode.h)
 // (rule variants, see docs/RULES.md; self-play records name both), then
 // commands on stdin:
 //
@@ -105,9 +106,14 @@ int main(int argc, char** argv) {
                dai::parsePromotionRule(argv[i + 1], pr)) {
       dai::setPromotionRule(pr);
       ++i;
+    } else if (std::string(argv[i]) == "--ply-cap" && i + 1 < argc &&
+               std::atoi(argv[i + 1]) > 0) {
+      az::setPlyCap(std::atoi(argv[i + 1]));
+      ++i;
     } else {
       fatal(std::string("unknown argument: ") + argv[i] +
-            " (only --counter-strike all|lishogi|jcsa, --promotion chu|honshogi)");
+            " (only --counter-strike all|lishogi|jcsa, --promotion chu|honshogi,"
+            " --ply-cap N)");
     }
   }
   dai::Position start;

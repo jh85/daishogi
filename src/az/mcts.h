@@ -72,7 +72,7 @@ struct MctsConfig {
   float dirichletAlpha = 0.15f;
   float rootPolicyTemperature = 1.f;  // softmax(logits / T), root only, before noise
   bool rootNoise = true;              // self-play on; eval matches off
-  int maxPlyCap = kPlyCap;            // game draw cap (plies from game start)
+  int maxPlyCap = plyCap();           // game draw cap (plies from game start)
   int repetitionOccurrences = 2;      // 2 = early cutoff; 4 = actual fourfold
   bool collectStats = false;          // diagnostic root move statistics
   // bestMove skips a root move after which the opponent can capture the

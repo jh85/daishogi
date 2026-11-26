@@ -111,7 +111,11 @@ and pass it to every engine they start: self-play workers, players, and the
 a move its rule does not allow. run1–run4 were trained under the honshogi rule;
 run4 runs with `--promotion honshogi` from iteration 172 (before that, from
 iteration 163, on a frozen copy of the pre-change binary). Their checkpoints
-should be evaluated with `--promotion honshogi` too. Self-play records name the
+should be evaluated with `--promotion honshogi` too. The game cap (1,500 plies by default) is set
+the same way: `--ply-cap N` on `run_loop.py`, `eval_match.py` and
+`checkpoint_tournament.py` reaches `daishogi-az --ply-cap N`, which applies it
+to self-play, the search's draw horizon and the network's progress plane
+(ply / cap). Evaluate a run's checkpoints with the cap it trained with. Self-play records name the
 rule (`"promotion"`; records without it are honshogi). The honshogi
 rule was first called `normal`, so run4's records and `loop_config.json`
 from iteration 172 say `"normal"`.

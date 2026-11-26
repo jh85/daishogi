@@ -7,6 +7,13 @@
 namespace az {
 
 namespace {
+int gPlyCap = kPlyCap;
+}  // namespace
+
+int plyCap() { return gPlyCap; }
+void setPlyCap(int plies) { gPlyCap = plies; }
+
+namespace {
 
 // Fixed unit-direction table for the double-move block.
 constexpr dai::Dir kDirs[8] = {{-1, -1}, {0, -1}, {1, -1}, {-1, 0},
@@ -65,7 +72,7 @@ void encodePlanes(const dai::Position& pos, int repCount, int ply, float* out) {
     std::fill(out + kRepeatOncePlane * kBoard, out + (kRepeatOncePlane + 1) * kBoard, 1.0f);
   if (repCount >= 2)
     std::fill(out + kRepeatTwicePlane * kBoard, out + (kRepeatTwicePlane + 1) * kBoard, 1.0f);
-  const float progress = std::min(static_cast<float>(ply) / kPlyCap, 1.0f);
+  const float progress = std::min(static_cast<float>(ply) / plyCap(), 1.0f);
   std::fill(out + kProgressPlane * kBoard, out + kNumPlanes * kBoard, progress);
 }
 

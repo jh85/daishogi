@@ -22,7 +22,7 @@ import subprocess
 import sys
 import time
 
-from eval_match import PLY_CAP, ROOT, Player, play_game, random_player, rule_args
+from eval_match import PLY_CAP, ROOT, Player, az_args, play_game, random_player, rule_args
 
 
 def unique_checkpoints(paths):
@@ -64,13 +64,15 @@ def main():
     ap.add_argument('--promotion', choices=['chu', 'honshogi'], default='',
                     help="promotion rule passed to every engine, referee included "
                          "(default: the binaries' compiled-in rule; see docs/RULES.md)")
+    ap.add_argument('--ply-cap', type=int, default=PLY_CAP,
+                    help='game draw cap in plies; passed to the AZ engines (daishogi-az --ply-cap)')
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
     if len(a.checkpoints) < 2 or min(a.pairs, a.sims, a.workers) <= 0:
         ap.error('at least two checkpoints and positive pairs/sims/workers required')
     if min(a.mate_nodes, a.probe_depth) < 0 or a.probe_nodes <= 0:
         ap.error('mate settings must be nonnegative (probe nodes positive)')
-    if not 0 <= a.opening_plies < PLY_CAP:
+    if not 0 <= a.opening_plies < a.ply_cap:
         ap.error('opening plies must be between zero and the game ply cap')
     if a.eval_max_batch < 0 or not math.isfinite(a.eval_batch_wait_ms) or a.eval_batch_wait_ms < 0:
         ap.error('inference batching settings must be finite and nonnegative')
@@ -112,7 +114,7 @@ def main():
             players = []
             try:
                 for port in (ports[later], ports[earlier]):
-                    players.append(Player([a.az, *rule_args(a.promotion)], search_command(a.sims, a.mate_nodes, a.probe_depth, a.probe_nodes), port=port))
+                    players.append(Player([a.az, *rule_args(a.promotion), *az_args(a.ply_cap)], search_command(a.sims, a.mate_nodes, a.probe_depth, a.probe_nodes), port=port))
                 players.append(random_player(a.gen, rules=rule_args(a.promotion)))
                 players.append(random_player(a.gen, seed=a.seed+pair, rules=rule_args(a.promotion)))
                 records = []
@@ -120,7 +122,8 @@ def main():
                     players[3].cmd(f'seed {a.seed+pair}', 'ok')
                     moves = []
                     score, reason = play_game(*players[:3], color, a.seed+pair,
-                                             a.opening_plies, players[3], moves)
+                                             a.opening_plies, players[3], moves,
+                                             ply_cap=a.ply_cap)
                     record = dict(later=paths[later], earlier=paths[earlier],
                                   pair=pair, color=color, score=score,
                                   reason=reason, moves=moves)
