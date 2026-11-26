@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "game.h"
+#include "material.h"
 #include "notation.h"
 
 using namespace dai;
@@ -520,6 +521,39 @@ static void testFlip() {
       sfen("13RCKI/13PAPA/15/15/15/15/15/15/15/15/15/15/15/15/ki14 b - 1"), {}));
 }
 
+// Material values and the exchange search (src/material.h).
+static void testMaterial() {
+  CHECK(armyValue() == 9894);  // az/material.py: material(initial) = (9894, 9894)
+  CHECK(materialBalance(sfen(kStartSfen)) == 0);
+  ExchangeSearch s;
+  const auto mv = [](const char* u) {
+    Move m;
+    parseUsi(u, m);
+    return m;
+  };
+  // Gote pawn 8e defended by a gold on 8d; Sente lion two squares away on
+  // 8g: taking the pawn loses the lion (40 - 1000), so nothing is gained.
+  const Position far = sfen("10ki4/15/15/7go7/7pa7/15/7LI7/15/15/15/15/15/15/15/10KI4 b - 1");
+  CHECK(capturedValue(far, mv("8g8e")) == 40);
+  CHECK(s.captureGain(far, mv("8g8e"), 40) == -960);
+  CHECK(s.gain(far) == 0);
+  // The lion next to the pawn: its double move takes pawn and gold
+  // (40 + 151) with no recapture, or takes the pawn and steps back (+40).
+  // The pawn itself attacks the lion: Gote to move would win 1000.
+  const Position near = sfen("10ki4/15/15/7go7/7pa7/7LI7/15/15/15/15/15/15/15/15/10KI4 b - 1");
+  CHECK(s.gain(near) == 191);
+  CHECK(capturedValue(near, mv("8f8e8d")) == 191);
+  CHECK(s.captureGain(near, mv("8f8e8f"), 40) == 40);
+  CHECK(capturedValue(near, mv("8f7f")) == -1);
+  Position passed = near;
+  passed.sideToMove = Gote;
+  CHECK(s.gain(passed) == 1000);
+  // Taking the last royal wins outright.
+  const Position royal = sfen("10ki4/10LI4/15/15/15/15/15/15/15/15/15/15/15/15/10KI4 b - 1");
+  CHECK(capturedValue(royal, mv("5b5a")) == kExchangeWin);
+  CHECK(s.gain(royal) == kExchangeWin);
+}
+
 int main() {
   testNotation();
   testStartPosition();
@@ -529,6 +563,7 @@ int main() {
   testPromotionRule();
   testGame();
   testFlip();
+  testMaterial();
   if (failures) {
     std::printf("%d of %d unit checks FAILED\n", failures, checks);
     return 1;

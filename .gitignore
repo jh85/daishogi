@@ -4,6 +4,7 @@
 /tests/unit_tests
 /tests/mate_test
 /tests/az/*_test
+/tools/capture_audit
 /tests/mismatches.jsonl
 /tools/refgen/target/
 __pycache__/

@@ -35,6 +35,8 @@ struct Sample {
 
 struct GameRecord {
   int samplingPlies = 20;
+  float materialBlend = 0.f, materialScale = 0.05f;  // MctsConfig's material bonus
+  float capturePrior = 0.f;                          // and capture prior boost
   float rootPolicyTemperature = 1.f;
   float fullSearchProb = 1.f;
   int fastSims = 32;

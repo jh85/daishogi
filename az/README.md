@@ -437,6 +437,71 @@ afresh each iteration, picked up the new model code and saved the head,
 which the eval server, still running the old code, could not load. A running
 loop has to be stopped before code it imports changes.
 
+From iteration 110 to 130, run5 tried a 500-ply cap (`--ply-cap 500`, with
+`--max-positions 330000` to keep the window at about 42 iterations). Almost
+no game ended decisively: under the 1,500-ply cap the royal captures are
+spread over the whole game, and only 12 of 118 in iterations 83-109 came by
+ply 500. run5 went back to 1,500 plies at iteration 131. A copy with a move
+temperature decaying from 1.0 to 0.2 (`--move-temp-early 1.0
+--move-temp-late 0.2 --move-temp-halflife 100`, iterations 136-155) ended
+4.1% of its games by royal capture against run5's 4.7%: no gain.
+
+### Capture audit: the agent is blind to material
+
+`az/capture_audit.py` replays game records through `tools/capture_audit`
+(`make tools/capture_audit`), which runs a capture-only exchange search
+(`dai::ExchangeSearch`, `src/material.h`) at every position: what the side to
+move can win now, what of its own hangs, and what its move gained. On 1,152
+run5 games (iterations 150-167) against 200 uniformly random games:
+
+| | run5 | random |
+|---|---|---|
+| positions with a capture available, plies 500+ | 84-91% | 95-100% |
+| positions where >= 40 can be won, plies 1000+ | 51% | 71% |
+| such captures taken | 1% | 3% |
+| own material >= 300 hanging, still hanging after the move | 94% | 92% |
+
+The same holds at iterations 5, 20, 50, 80 and 110. Full searches give the
+winning captures 1% of their visits. Pieces meet and free material is
+everywhere; the agent takes and defends it no more than random play, and
+material changes hands about nine times in a 1,500-ply game. The value head
+does not reward material (it does not beat a constant guess on unseen games),
+so the search follows the policy prior, which learned from that search.
+
+### Material training wheels
+
+Two self-play search options, off by default, to be withdrawn once the
+network has learned material:
+
+- `--material-blend L` (`MctsConfig::materialBlend`): each evaluated leaf's
+  value becomes `(1 - L) * net + L * material`, where material is `0.5 + 0.5
+  * tanh(x / scale)` and x the side to move's material balance plus what it
+  can win by captures now (the exchange search, replies included), as a
+  share of one army (`--material-blend-scale`, default 0.05). 1 if it can
+  take the last royal. Taking a defended pawn with a lion scores 40 - 1000,
+  so the search declines it.
+- `--capture-prior B` (`MctsConfig::capturePrior`): at every expanded node,
+  captures that win material after the exchange get `(1 - B) * prior + B *
+  gain / total gain`; the other moves keep `(1 - B)` of theirs. Nodes
+  without a winning capture are unchanged.
+
+Both pass from `run_loop.py` to every self-play command and are recorded in
+each game (`"material_blend"`, `"capture_prior"`); matches and strength
+tournaments search with the network alone. Self-play from run5's
+iteration-172 network, 8 games of 400 plies each:
+
+| | none | blend 0.5 | blend 0.5, prior 0.25 | blend 0.5, prior 0.5 |
+|---|---|---|---|---|
+| winning captures (>= 40) taken | 0-1% | 0-1% | 28-32% | 63-75% |
+| positions with own material (>= 40) hanging | 15% | 14% | 3% | 3% |
+| visit share on winning captures | 1% | 1% | 23% | 40% |
+| material changes per game | 0.8 | 0.2 | 4.4 | 8.2 |
+
+The blend alone defends: threats to its own pieces show up in almost every
+child's value, but a capture with a 1% prior is barely visited in 128
+simulations (32 on three moves in four). The prior boost lets the search try
+the winning captures, and the blend then confirms them.
+
 ## Open points
 
 1. **Value generalization.** run4's value head does not yet beat a
