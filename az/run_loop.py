@@ -45,6 +45,28 @@ ROOT = Path(__file__).parent.parent
 AZ = ROOT / "daishogi-az"
 
 
+def wheels_at(a, it):
+    """(material blend, capture prior) for iteration `it`: the training
+    wheels at full strength until --wheels-taper-start, then linearly down
+    to 0 over --wheels-taper-iters iterations (absolute iteration numbers,
+    so a resumed run continues the schedule). No taper start: constant."""
+    if a.wheels_taper_start is None:
+        f = 1.0
+    else:
+        f = min(1.0, max(0.0, 1.0 - (it - a.wheels_taper_start) / a.wheels_taper_iters))
+    return a.material_blend * f, a.capture_prior * f
+
+
+def wheels_options(a, blend, prior):
+    """Self-play options for the given wheels; empty once both are 0."""
+    out = ""
+    if blend > 0:
+        out += f" --material-blend {blend:.6g} --material-blend-scale {a.material_blend_scale}"
+    if prior > 0:
+        out += f" --capture-prior {prior:.6g}"
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-dir", default="az/data/run1")
@@ -103,6 +125,12 @@ def main():
     ap.add_argument("--capture-prior", type=float, default=0.0,
                     help="self-play search: share of each node's prior moved to captures that "
                          "win material after the exchange (MctsConfig::capturePrior); 0 = off")
+    ap.add_argument("--wheels-taper-start", type=int, default=None,
+                    help="iteration from which --material-blend and --capture-prior decrease "
+                         "linearly to 0 (default: constant)")
+    ap.add_argument("--wheels-taper-iters", type=int, default=0,
+                    help="iterations the taper takes; at --wheels-taper-start + this, "
+                         "self-play searches with the network alone")
     ap.add_argument("--full-prob", type=float, default=1.0,
                     help="playout cap randomization: share of moves with the full "
                          "--sims search (recorded); the rest use --fast-sims, unrecorded")
@@ -155,6 +183,8 @@ def main():
         ap.error("--material-blend must be in [0, 1] and --material-blend-scale positive")
     if not 0 <= a.capture_prior <= 1:
         ap.error("--capture-prior must be in [0, 1]")
+    if a.wheels_taper_start is not None and a.wheels_taper_iters <= 0:
+        ap.error("--wheels-taper-start needs a positive --wheels-taper-iters")
     if a.temp_plies < -1:
         ap.error("--temp-plies must be -1 or nonnegative")
     if not math.isfinite(a.muon_lr_scale) or a.muon_lr_scale <= 0 or a.muon_warmup_steps < 0:
@@ -229,20 +259,19 @@ def main():
         if (a.move_temp_early, a.move_temp_late) != (1.0, 1.0):
             mate += (f" --move-temp-early {a.move_temp_early} --move-temp-late {a.move_temp_late}"
                      f" --move-temp-halflife {a.move_temp_halflife}")
-        if a.material_blend > 0:  # appended to every self-play command
-            mate += (f" --material-blend {a.material_blend}"
-                     f" --material-blend-scale {a.material_blend_scale}")
-        if a.capture_prior > 0:
-            mate += f" --capture-prior {a.capture_prior}"
         for it in range(it0, it0 + a.iterations):
             if a.stop_file and Path(a.stop_file).exists():
                 say("[loop] stopped at completed iteration boundary")
                 break
             t0 = time.time()
+            blend, prior = wheels_at(a, it)
+            wheels = wheels_options(a, blend, prior)  # appended to every self-play command
+            if a.material_blend > 0 or a.capture_prior > 0:
+                say(f"[loop] iter {it}: material blend {blend:.4g}, capture prior {prior:.4g}")
             if a.dynamic_games:
                 options=(f"--temp-plies {a.temp_plies} --sims {a.sims} --batch {a.batch} "
                          f"--root-policy-temp {a.root_policy_temp}"
-                         f" --full-prob {a.full_prob} --fast-sims {a.fast_sims}{mate}")
+                         f" --full-prob {a.full_prob} --fast-sims {a.fast_sims}{mate}{wheels}")
                 total_plies,total_games=run_dynamic(engine,[s[0] for s in servers],a.workers,a.games,
                     a.seed,it,games_dir/f"iter_{it:06d}",options)
             else:
@@ -258,7 +287,7 @@ def main():
                     p.stdin.write(
                         f"selfplay --games {a.games} --sims {a.sims} "
                         f"--temp-plies {a.temp_plies} --root-policy-temp {a.root_policy_temp} --batch {a.batch} --seed {seed} --out {worker_dir} "
-                        f"--full-prob {a.full_prob} --fast-sims {a.fast_sims}{mate} "
+                        f"--full-prob {a.full_prob} --fast-sims {a.fast_sims}{mate}{wheels} "
                         f"--eval pipe --port {port}\n")
                     p.stdin.flush()
                     procs.append(p)

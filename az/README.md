@@ -487,7 +487,11 @@ network has learned material:
 
 Both pass from `run_loop.py` to every self-play command and are recorded in
 each game (`"material_blend"`, `"capture_prior"`); matches and strength
-tournaments search with the network alone. Self-play from run5's
+tournaments search with the network alone. `--wheels-taper-start IT
+--wheels-taper-iters N` withdraws them: full strength until iteration IT,
+then both decrease linearly to 0 at IT + N, after which self-play searches
+with the network alone. The schedule uses absolute iteration numbers, so a
+resumed run continues it; the loop logs the values of each iteration. Self-play from run5's
 iteration-172 network, 8 games of 400 plies each:
 
 | | none | blend 0.5 | blend 0.5, prior 0.25 | blend 0.5, prior 0.5 |
