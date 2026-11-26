@@ -10,6 +10,7 @@
 
 #include "../../src/az/selfplay.h"
 #include "../../src/mate.h"
+#include "../../src/material.h"
 #include "../../src/movegen.h"
 #include "../../src/notation.h"
 
@@ -355,6 +356,72 @@ void testRootRoyalFilter() {
 
 }  // namespace
 
+// Material bonus: a free rook to take. With a uniform prior and a
+// constant network value, only the material score tells the moves apart.
+void testMaterialBlend() {
+  const auto start = position(dai::kStartSfen);
+  check(az::materialLeafValue(start, dai::generateLegal(start), .05f, 4) == .5f,
+        "initial position: material value 0.5");
+  // Sente rook 8k and Gote rook 8e face each other on an open file.
+  const auto p = position("10ki4/15/15/15/7ro7/15/15/15/15/15/7RO7/15/15/15/10KI4 b - 1");
+  const float v = az::materialLeafValue(p, dai::generateLegal(p), .05f, 4);
+  check(std::abs(v - (.5f + .5f * std::tanh(300.f / dai::armyValue() / .05f))) < 1e-5f,
+        "material value counts the rook the side to move can win");
+  az::MctsConfig cfg;
+  cfg.sims = 200;
+  cfg.batchSize = 8;
+  cfg.rootNoise = false;
+  az::RandomEval uniform;
+  std::mt19937_64 rng(9);
+  cfg.materialBlend = 1.f;
+  const auto r = az::Mcts(cfg).search(p, false, {}, 0, uniform, rng);
+  // Taking it with promotion (8k8e+, a dragon king, 400) beats taking it
+  // as a rook (8k8e, 300); either counts as taking the rook.
+  const auto captureShare = [](const az::SearchResult& res) {
+    float share = 0.f;
+    for (const auto& [index, prob] : res.policy)
+      if (index == az::moveToIndex(move("8k8e")) || index == az::moveToIndex(move("8k8e+")))
+        share += prob;
+    return share;
+  };
+  check(dai::moveToUsi(r.bestMove) == "8k8e+", "material bonus: the search takes the free rook");
+  check(captureShare(r) > .5f, "material bonus: most visits on the free capture");
+  cfg.materialBlend = 0.f;
+  const auto off = az::Mcts(cfg).search(p, false, {}, 0, uniform, rng);
+  check(captureShare(off) < .2f, "without the bonus a uniform network does not prefer the capture");
+  // A prior that insists on a king move (by 2000 logits): only the capture
+  // prior boost lets the search find the rook.
+  ForcedEval kingward("5o4o");
+  cfg.materialBlend = .5f;
+  const auto forced = az::Mcts(cfg).search(p, false, {}, 0, kingward, rng);
+  check(captureShare(forced) < .05f, "without the boost a confident prior hides the capture");
+  cfg.capturePrior = .5f;
+  const auto boosted = az::Mcts(cfg).search(p, false, {}, 0, kingward, rng);
+  check(captureShare(boosted) > .5f, "capture prior boost: the search finds and takes the rook");
+  // The start position has no winning capture: priors unchanged.
+  const auto quiet = az::Mcts(cfg).search(start, false, {}, 0, kingward, rng);
+  cfg.capturePrior = 0.f;
+  const auto quietOff = az::Mcts(cfg).search(start, false, {}, 0, kingward, rng);
+  check(quiet.policy == quietOff.policy, "capture prior boost leaves quiet positions alone");
+  cfg.capturePrior = 1.5f;
+  bool badPrior = false;
+  try {
+    az::Mcts bad(cfg);
+  } catch (const std::invalid_argument&) {
+    badPrior = true;
+  }
+  check(badPrior, "capture prior above 1 must be rejected");
+  cfg.capturePrior = 0.f;
+  cfg.materialBlend = 1.5f;
+  bool rejected = false;
+  try {
+    az::Mcts bad(cfg);
+  } catch (const std::invalid_argument&) {
+    rejected = true;
+  }
+  check(rejected, "material blend above 1 must be rejected");
+}
+
 int main() {
   try {
     testSampling();
@@ -362,11 +429,12 @@ int main() {
     testWinInOne();
     testMateSolver();
     testRootRoyalFilter();
+    testMaterialBlend();
   } catch (const std::exception& e) {
     std::cout << "FAIL: " << e.what() << "\n";
     return 1;
   }
   std::cout << "OK: opening/full-game sampling, cutoff, visit probabilities, policy target, "
-               "forced move, hanging-royal, win-in-one terminal, root royal capture, root mate, in-tree mate probe and root royal filter checks passed\n";
+               "forced move, hanging-royal, win-in-one terminal, root royal capture, root mate, in-tree mate probe, root royal filter, material bonus and capture prior checks passed\n";
   return 0;
 }

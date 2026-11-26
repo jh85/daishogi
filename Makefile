@@ -23,8 +23,8 @@ $(error PROMOTION must be chu or honshogi)
 endif
 CXXFLAGS += -DDAI_PROMOTION=$(PR_$(PROMOTION))
 
-SRC := src/types.cpp src/position.cpp src/notation.cpp src/movegen.cpp src/game.cpp src/mate.cpp
-HDR := src/types.h src/position.h src/notation.h src/movegen.h src/game.h src/mate.h
+SRC := src/types.cpp src/position.cpp src/notation.cpp src/movegen.cpp src/game.cpp src/mate.cpp src/material.cpp
+HDR := src/types.h src/position.h src/notation.h src/movegen.h src/game.h src/mate.h src/material.h
 BIN := daishogi
 UNIT := tests/unit_tests
 REFGEN := tools/refgen/target/release/refgen
@@ -50,6 +50,9 @@ $(UNIT): $(SRC) tests/unit_tests.cpp $(HDR)
 PUZZLEGEN := tools/puzzlegen
 $(PUZZLEGEN): $(SRC) tools/puzzlegen.cpp $(HDR)
 	$(CXX) $(CXXFLAGS) -o $@ $(SRC) tools/puzzlegen.cpp
+CAPTUREAUDIT := tools/capture_audit
+$(CAPTUREAUDIT): $(SRC) tools/capture_audit.cpp $(HDR)
+	$(CXX) $(CXXFLAGS) -o $@ $(SRC) tools/capture_audit.cpp
 
 # Mate solver against brute force (~2 minutes; see tests/mate_test.cpp).
 MATETEST := tests/mate_test
@@ -117,7 +120,7 @@ play: $(BIN)
 	./$(BIN) play --seed $(SEED) --games $(GAMES) --max-plies $(MAXPLIES) --quiet
 
 clean:
-	rm -f $(BIN) $(AZBIN) $(UNIT) $(AZTESTS) $(MATETEST) $(PUZZLEGEN) tests/mismatches.jsonl
+	rm -f $(BIN) $(AZBIN) $(UNIT) $(AZTESTS) $(MATETEST) $(PUZZLEGEN) $(CAPTUREAUDIT) tests/mismatches.jsonl
 	rm -rf tests/__pycache__ tests/az/__pycache__ az/__pycache__
 
 .PHONY: all test az-test mate-test corpus reftest mutation play clean

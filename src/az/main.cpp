@@ -12,6 +12,10 @@
 //   selfplay --games N --sims S --batch B --seed K --out DIR
 //            [--temp-plies T] [--move-temp-early E --move-temp-late L
 //             --move-temp-halflife H] [--root-policy-temp X] [--eval random|pipe]
+//            [--material-blend L [--material-blend-scale S]]  material bonus
+//              in the search's leaf values (MctsConfig::materialBlend)
+//            [--capture-prior B]  prior boost for winning captures
+//              (MctsConfig::capturePrior)
 //            [--port P] [--start startpos|position]
 //            [--full-prob F --fast-sims N]   playout cap randomization
 //            [--mate-nodes N --probe-depth D --probe-nodes M]  mate solver
@@ -150,6 +154,9 @@ int main(int argc, char** argv) {
         else if (tok[i] == "--move-temp-early") cfg.moveTempEarly = std::stof(tok[i + 1]);
         else if (tok[i] == "--move-temp-late") cfg.moveTempLate = std::stof(tok[i + 1]);
         else if (tok[i] == "--move-temp-halflife") cfg.moveTempHalflife = std::stof(tok[i + 1]);
+        else if (tok[i] == "--material-blend") cfg.mcts.materialBlend = std::stof(tok[i + 1]);
+        else if (tok[i] == "--material-blend-scale") cfg.mcts.materialScale = std::stof(tok[i + 1]);
+        else if (tok[i] == "--capture-prior") cfg.mcts.capturePrior = std::stof(tok[i + 1]);
         else if (tok[i] == "--seed") cfg.seed = std::stoull(tok[i + 1]);
         else if (tok[i] == "--out") out = tok[i + 1];
         else if (tok[i] == "--eval") evalKind = tok[i + 1];

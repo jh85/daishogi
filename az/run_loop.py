@@ -95,6 +95,14 @@ def main():
     ap.add_argument("--move-temp-late", type=float, default=1.0,
                     help="temperature the schedule decays to: T = late + (early - late) * 0.5^(ply / halflife)")
     ap.add_argument("--move-temp-halflife", type=float, default=100.0, help="schedule half-life in plies")
+    ap.add_argument("--material-blend", type=float, default=0.0,
+                    help="self-play search leaf value = (1-L)*net + L*material (exchange-aware "
+                         "material score; see MctsConfig::materialBlend); 0 = the network alone")
+    ap.add_argument("--material-blend-scale", type=float, default=0.05,
+                    help="material score unit: tanh(material lead / one army / scale)")
+    ap.add_argument("--capture-prior", type=float, default=0.0,
+                    help="self-play search: share of each node's prior moved to captures that "
+                         "win material after the exchange (MctsConfig::capturePrior); 0 = off")
     ap.add_argument("--full-prob", type=float, default=1.0,
                     help="playout cap randomization: share of moves with the full "
                          "--sims search (recorded); the rest use --fast-sims, unrecorded")
@@ -143,6 +151,10 @@ def main():
     for name in ("move_temp_early", "move_temp_late", "move_temp_halflife"):
         if not math.isfinite(getattr(a, name)) or getattr(a, name) <= 0:
             ap.error(f"--{name.replace('_', '-')} must be finite and positive")
+    if not 0 <= a.material_blend <= 1 or not a.material_blend_scale > 0:
+        ap.error("--material-blend must be in [0, 1] and --material-blend-scale positive")
+    if not 0 <= a.capture_prior <= 1:
+        ap.error("--capture-prior must be in [0, 1]")
     if a.temp_plies < -1:
         ap.error("--temp-plies must be -1 or nonnegative")
     if not math.isfinite(a.muon_lr_scale) or a.muon_lr_scale <= 0 or a.muon_warmup_steps < 0:
@@ -217,6 +229,11 @@ def main():
         if (a.move_temp_early, a.move_temp_late) != (1.0, 1.0):
             mate += (f" --move-temp-early {a.move_temp_early} --move-temp-late {a.move_temp_late}"
                      f" --move-temp-halflife {a.move_temp_halflife}")
+        if a.material_blend > 0:  # appended to every self-play command
+            mate += (f" --material-blend {a.material_blend}"
+                     f" --material-blend-scale {a.material_blend_scale}")
+        if a.capture_prior > 0:
+            mate += f" --capture-prior {a.capture_prior}"
         for it in range(it0, it0 + a.iterations):
             if a.stop_file and Path(a.stop_file).exists():
                 say("[loop] stopped at completed iteration boundary")

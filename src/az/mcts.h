@@ -92,6 +92,19 @@ struct MctsConfig {
   int rootMatePly = 200;
   int probeDepth = 0;
   size_t probeNodes = 2000;
+  // Material bonus (training wheels for self-play): each evaluated leaf's
+  // value becomes (1 - materialBlend) * net + materialBlend * material,
+  // where material = materialLeafValue() below. 0 = the network alone.
+  float materialBlend = 0.f;
+  float materialScale = 0.05f;  // share of one army for tanh's unit
+  int materialDepth = 4;        // exchange search plies
+  // Capture prior boost (training wheels with materialBlend): at every
+  // expanded node, captures that win material after the exchange (net gain
+  // > 0, dai::ExchangeSearch) get prior (1 - capturePrior) * net +
+  // capturePrior * gain / total gain; the other moves keep (1 - capturePrior)
+  // of theirs. Nodes without a winning capture are unchanged. Root noise is
+  // added afterwards. 0 = the network's prior alone.
+  float capturePrior = 0.f;
   // Ends the search early; checked between batches, after the first one.
   const std::atomic<bool>* stop = nullptr;
 };
@@ -230,5 +243,13 @@ bool findRoyalCapture(const dai::Position& pos, const std::vector<dai::Move>& le
 // last royal. False if the game already ended, the mover has no royal or `m`
 // itself captures the opponent's last royal.
 bool hangsLastRoyal(const dai::Position& pos, const dai::Move& m);
+
+// Material value of a position for the side to move, in [0, 1] like a
+// leaf value: 0.5 + 0.5 * tanh(x / scale), where x is the material balance
+// from its view plus what it can win by captures now (dai::ExchangeSearch,
+// replies included), as a share of one army. 1 if it can take the
+// opponent's last royal. `legal` are the position's legal moves.
+float materialLeafValue(const dai::Position& pos, const std::vector<dai::Move>& legal,
+                        float scale, int depth);
 
 }  // namespace az

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <stdexcept>
 
+#include "../material.h"
 #include "../movegen.h"
 
 namespace az {
@@ -135,6 +136,22 @@ bool Mcts::rootMate(dai::MateAnswer& out) {
 Mcts::Mcts(MctsConfig cfg) : cfg_(cfg) {
   if (!std::isfinite(cfg_.rootPolicyTemperature) || cfg_.rootPolicyTemperature <= 0.f)
     throw std::invalid_argument("root policy temperature must be finite and positive");
+  if (!(cfg_.capturePrior >= 0.f && cfg_.capturePrior <= 1.f))
+    throw std::invalid_argument("capture prior must be in [0, 1]");
+  if (!(cfg_.materialBlend >= 0.f && cfg_.materialBlend <= 1.f) ||
+      !(cfg_.materialScale > 0.f) || !std::isfinite(cfg_.materialScale) || cfg_.materialDepth < 1)
+    throw std::invalid_argument("material blend must be in [0, 1], its scale positive, depth >= 1");
+}
+
+float materialLeafValue(const dai::Position& pos, const std::vector<dai::Move>& legal,
+                        float scale, int depth) {
+  dai::ExchangeSearch search;
+  search.depth = depth;
+  const int gain = search.gain(pos, &legal);
+  if (gain >= dai::kExchangeWin) return 1.f;
+  const int balance = dai::materialBalance(pos) * (pos.sideToMove == dai::Sente ? 1 : -1);
+  const float x = static_cast<float>(balance + gain) / dai::armyValue();
+  return 0.5f + 0.5f * std::tanh(x / scale);
 }
 
 uint64_t Mcts::realKey(const dai::Position& pos) const {
@@ -158,6 +175,10 @@ void Mcts::fillNode(int nodeIdx, const dai::Position& pos,
     const float s = e0 + e1 + e2;
     node.wdl = {{e0 / s, e1 / s, e2 / s}};
     node.leafValue = e0 / s + 0.5f * e1 / s;  // win + draw/2, stm perspective
+    if (cfg_.materialBlend > 0.f)
+      node.leafValue = (1.f - cfg_.materialBlend) * node.leafValue +
+                       cfg_.materialBlend *
+                           materialLeafValue(pos, legal, cfg_.materialScale, cfg_.materialDepth);
   }
   std::vector<float> logits;
   logits.reserve(legal.size());
@@ -177,6 +198,24 @@ void Mcts::fillNode(int nodeIdx, const dai::Position& pos,
     e.policyIndex = moveToIndex(legal[i]);
     e.prior = logits[i] / sum;
     node.edges.push_back(e);
+  }
+  if (cfg_.capturePrior > 0.f) {
+    dai::ExchangeSearch search;
+    search.depth = cfg_.materialDepth;
+    std::vector<float> gains(legal.size(), 0.f);
+    float total = 0.f;
+    for (size_t i = 0; i < legal.size(); ++i) {
+      const int c = dai::capturedValue(pos, legal[i]);
+      if (c < 0) continue;
+      // A royal capture's kExchangeWin is capped: the terminal check and the
+      // mate probe handle it; here it only needs a large share.
+      const int g = std::min(search.captureGain(pos, legal[i], c), 2000);
+      if (g > 0) total += (gains[i] = static_cast<float>(g));
+    }
+    if (total > 0.f)
+      for (size_t i = 0; i < legal.size(); ++i)
+        node.edges[i].prior = (1.f - cfg_.capturePrior) * node.edges[i].prior +
+                              cfg_.capturePrior * gains[i] / total;
   }
   node.evaluated = true;
 }
