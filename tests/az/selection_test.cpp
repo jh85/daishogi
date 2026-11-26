@@ -72,10 +72,38 @@ void testSampling() {
     check(rng == copy, "greedy selection must not consume randomness");
   }
   check(result.policy == original, "sampling must not alter the policy training target");
+  // Temperature: visits^(1/T). T = 0.5 turns .75/.25 into .9/.1; T = 2 into
+  // .634/.366 (sqrt 3 : 1).
+  for (auto [temp, want] : {std::pair<float, float>{.5f, .1f}, {2.f, .366f}}) {
+    std::mt19937_64 rng(321);
+    int alternatives = 0;
+    for (int i = 0; i < 10000; ++i)
+      alternatives += dai::moveToUsi(az::selectSelfplayMove(result, -1, 50, rng, temp)) == "2k2j";
+    check(std::abs(alternatives / 10000.f - want) < .02f,
+          "temperature must sample in proportion to visits^(1/T)");
+  }
+  {
+    std::mt19937_64 a(5), b(5);
+    for (int i = 0; i < 200; ++i)
+      check(az::selectSelfplayMove(result, -1, 50, a, 1.f) ==
+                az::selectSelfplayMove(result, -1, 50, b),
+            "temperature 1 must be the default sampling");
+  }
+  check(result.policy == original, "temperature must not alter the policy training target");
+  az::SelfplayConfig cfg;
+  check(az::moveTemperature(cfg, 0) == 1.f && az::moveTemperature(cfg, 1000) == 1.f,
+        "default schedule must be constant 1");
+  cfg.moveTempEarly = 1.f, cfg.moveTempLate = .2f, cfg.moveTempHalflife = 100.f;
+  check(std::abs(az::moveTemperature(cfg, 0) - 1.f) < 1e-6f &&
+            std::abs(az::moveTemperature(cfg, 100) - .6f) < 1e-6f &&
+            std::abs(az::moveTemperature(cfg, 200) - .4f) < 1e-6f &&
+            std::abs(az::moveTemperature(cfg, 3000) - .2f) < 1e-4f,
+        "schedule must decay from early to late with the half-life");
   result.policy = {{az::moveToIndex(best), 1.f}};
   std::mt19937_64 rng(123);
   for (int i = 0; i < 100; ++i)
-    check(dai::moveToUsi(az::selectSelfplayMove(result, -1, 999, rng)) == "1k1j",
+    check(dai::moveToUsi(az::selectSelfplayMove(result, -1, 999, rng)) == "1k1j" &&
+              dai::moveToUsi(az::selectSelfplayMove(result, -1, 999, rng, .3f)) == "1k1j",
           "one-hot policy must remain forced");
 }
 

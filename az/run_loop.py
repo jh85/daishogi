@@ -90,6 +90,11 @@ def main():
     ap.add_argument("--eval-tcp-nodelay", action="store_true")
     ap.add_argument("--temp-plies", type=int, default=20, help="sample first N plies; -1 samples throughout")
     ap.add_argument("--root-policy-temp", type=float, default=1.0)
+    ap.add_argument("--move-temp-early", type=float, default=1.0,
+                    help="move temperature at ply 0 (visits^(1/T) sampling); see --move-temp-late")
+    ap.add_argument("--move-temp-late", type=float, default=1.0,
+                    help="temperature the schedule decays to: T = late + (early - late) * 0.5^(ply / halflife)")
+    ap.add_argument("--move-temp-halflife", type=float, default=100.0, help="schedule half-life in plies")
     ap.add_argument("--full-prob", type=float, default=1.0,
                     help="playout cap randomization: share of moves with the full "
                          "--sims search (recorded); the rest use --fast-sims, unrecorded")
@@ -135,6 +140,9 @@ def main():
         ap.error("root policy temperature must be finite and positive")
     if a.eval_max_batch < 0 or not math.isfinite(a.eval_batch_wait_ms) or a.eval_batch_wait_ms < 0:
         ap.error("inference batching settings must be finite and nonnegative")
+    for name in ("move_temp_early", "move_temp_late", "move_temp_halflife"):
+        if not math.isfinite(getattr(a, name)) or getattr(a, name) <= 0:
+            ap.error(f"--{name.replace('_', '-')} must be finite and positive")
     if a.temp_plies < -1:
         ap.error("--temp-plies must be -1 or nonnegative")
     if not math.isfinite(a.muon_lr_scale) or a.muon_lr_scale <= 0 or a.muon_warmup_steps < 0:
@@ -206,6 +214,9 @@ def main():
 
         mate = (f" --mate-nodes {a.mate_nodes} --probe-depth {a.probe_depth}"
                 f" --probe-nodes {a.probe_nodes}")
+        if (a.move_temp_early, a.move_temp_late) != (1.0, 1.0):
+            mate += (f" --move-temp-early {a.move_temp_early} --move-temp-late {a.move_temp_late}"
+                     f" --move-temp-halflife {a.move_temp_halflife}")
         for it in range(it0, it0 + a.iterations):
             if a.stop_file and Path(a.stop_file).exists():
                 say("[loop] stopped at completed iteration boundary")

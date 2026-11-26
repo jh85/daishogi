@@ -35,6 +35,7 @@ struct Sample {
 
 struct GameRecord {
   int samplingPlies = 20;
+  float moveTempEarly = 1.f, moveTempLate = 1.f, moveTempHalflife = 100.f;
   float rootPolicyTemperature = 1.f;
   float fullSearchProb = 1.f;
   int fastSims = 32;
@@ -60,6 +61,13 @@ struct SelfplayConfig {
   int sims = 200;
   int batchSize = 16;
   int tempPlies = 20;  // -1 samples throughout; otherwise sample this many plies
+  // Move temperature of the sampled plies (KataGo-style decay): the visit
+  // distribution is raised to 1/T(ply) with
+  //   T(ply) = late + (early - late) * 0.5^(ply / halflife).
+  // early = late = 1 samples in proportion to visits (the default).
+  float moveTempEarly = 1.f;
+  float moveTempLate = 1.f;
+  float moveTempHalflife = 100.f;  // plies
   // Playout cap randomization (KataGo): each move gets the full search
   // (cfg.sims, root noise) with this probability and is recorded as a
   // training sample; the other moves use a cheap unrecorded search of
@@ -70,8 +78,12 @@ struct SelfplayConfig {
   MctsConfig mcts;
 };
 
+// temperature: sample in proportion to visits^(1/temperature); 1 = proportional.
 dai::Move selectSelfplayMove(const SearchResult& search, int samplingPlies, int ply,
-                             std::mt19937_64& rng);
+                             std::mt19937_64& rng, float temperature = 1.f);
+
+// T(ply) of the config's temperature schedule (see SelfplayConfig).
+float moveTemperature(const SelfplayConfig& cfg, int ply);
 
 GameRecord playGame(const std::string& initialSfen, const SelfplayConfig& cfg,
                     Evaluator& eval);

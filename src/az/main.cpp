@@ -10,7 +10,8 @@
 // commands on stdin:
 //
 //   selfplay --games N --sims S --batch B --seed K --out DIR
-//            [--temp-plies T] [--root-policy-temp X] [--eval random|pipe]
+//            [--temp-plies T] [--move-temp-early E --move-temp-late L
+//             --move-temp-halflife H] [--root-policy-temp X] [--eval random|pipe]
 //            [--port P] [--start startpos|position]
 //            [--full-prob F --fast-sims N]   playout cap randomization
 //            [--mate-nodes N --probe-depth D --probe-nodes M]  mate solver
@@ -146,6 +147,9 @@ int main(int argc, char** argv) {
         else if (tok[i] == "--sims") cfg.sims = std::stoi(tok[i + 1]);
         else if (tok[i] == "--batch") cfg.batchSize = std::stoi(tok[i + 1]);
         else if (tok[i] == "--temp-plies") cfg.tempPlies = std::stoi(tok[i + 1]);
+        else if (tok[i] == "--move-temp-early") cfg.moveTempEarly = std::stof(tok[i + 1]);
+        else if (tok[i] == "--move-temp-late") cfg.moveTempLate = std::stof(tok[i + 1]);
+        else if (tok[i] == "--move-temp-halflife") cfg.moveTempHalflife = std::stof(tok[i + 1]);
         else if (tok[i] == "--seed") cfg.seed = std::stoull(tok[i + 1]);
         else if (tok[i] == "--out") out = tok[i + 1];
         else if (tok[i] == "--eval") evalKind = tok[i + 1];
@@ -159,6 +163,10 @@ int main(int argc, char** argv) {
         else fatal("unknown selfplay option: " + tok[i]);
       }
       if (cfg.tempPlies < -1) fatal("--temp-plies must be -1 (all moves) or nonnegative");
+      if (!(cfg.moveTempEarly > 0.f && cfg.moveTempLate > 0.f && cfg.moveTempHalflife > 0.f) ||
+          !std::isfinite(cfg.moveTempEarly) || !std::isfinite(cfg.moveTempLate) ||
+          !std::isfinite(cfg.moveTempHalflife))
+        fatal("--move-temp-early, --move-temp-late and --move-temp-halflife must be positive");
       if (cfg.sims <= 0 || cfg.batchSize <= 0) fatal("sims and batch must be positive");
       if (!(cfg.fullSearchProb > 0.f && cfg.fullSearchProb <= 1.f) || cfg.fastSims <= 0)
         fatal("--full-prob must be in (0, 1] and --fast-sims positive");

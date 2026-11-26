@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -98,16 +99,40 @@ void RandomEval::evaluate(int n, const float*, float* policyOut, float* wdlOut) 
 }
 
 dai::Move selectSelfplayMove(const SearchResult& search, int samplingPlies, int ply,
-                             std::mt19937_64& rng) {
+                             std::mt19937_64& rng, float temperature) {
   if (samplingPlies >= 0 && ply >= samplingPlies) return search.bestMove;
   std::uniform_real_distribution<float> uni(0.f, 1.f);
   const float pick = uni(rng);
+  if (temperature != 1.f && !search.policy.empty()) {
+    // visits^(1/T), scaled by the largest share so the powers cannot underflow.
+    float top = 0.f;
+    for (const auto& kv : search.policy) top = std::max(top, kv.second);
+    std::vector<double> w;
+    w.reserve(search.policy.size());
+    double total = 0.0;
+    for (const auto& kv : search.policy) {
+      w.push_back(kv.second > 0.f ? std::pow(double(kv.second) / top, 1.0 / temperature) : 0.0);
+      total += w.back();
+    }
+    double acc = 0.0;
+    for (size_t i = 0; i < w.size(); ++i) {
+      acc += w[i] / total;
+      if (pick <= acc + 1e-9) return indexToMove(search.policy[i].first);
+    }
+    return search.bestMove;
+  }
   float acc = 0.f;
   for (const auto& kv : search.policy) {
     acc += kv.second;
     if (pick <= acc + 1e-9f) return indexToMove(kv.first);
   }
   return search.bestMove;
+}
+
+float moveTemperature(const SelfplayConfig& cfg, int ply) {
+  if (cfg.moveTempEarly == cfg.moveTempLate) return cfg.moveTempLate;
+  return cfg.moveTempLate + (cfg.moveTempEarly - cfg.moveTempLate) *
+                                std::pow(0.5f, static_cast<float>(ply) / cfg.moveTempHalflife);
 }
 
 GameRecord playGame(const std::string& initialSfen, const SelfplayConfig& cfg,
@@ -122,6 +147,9 @@ GameRecord playGame(const std::string& initialSfen, const SelfplayConfig& cfg,
   GameRecord rec;
   rec.initialSfen = initialSfen;
   rec.samplingPlies = cfg.tempPlies;
+  rec.moveTempEarly = cfg.moveTempEarly;
+  rec.moveTempLate = cfg.moveTempLate;
+  rec.moveTempHalflife = cfg.moveTempHalflife;
   rec.rootPolicyTemperature = cfg.mcts.rootPolicyTemperature;
   rec.fullSearchProb = cfg.fullSearchProb;
   rec.fastSims = cfg.fastSims;
@@ -192,7 +220,8 @@ GameRecord playGame(const std::string& initialSfen, const SelfplayConfig& cfg,
     }
 
     // Choose the move: temperature sampling early, argmax later.
-    const dai::Move chosen = selectSelfplayMove(res, cfg.tempPlies, plies, rng);
+    const dai::Move chosen =
+        selectSelfplayMove(res, cfg.tempPlies, plies, rng, moveTemperature(cfg, plies));
     const dai::Move real = flip ? dai::flipMove(chosen) : chosen;
     rec.moves.push_back(dai::moveToUsi(real));
     hashes.push_back(curKey);
@@ -215,6 +244,8 @@ GameRecord playGame(const std::string& initialSfen, const SelfplayConfig& cfg,
 void writeGameRecord(const GameRecord& rec, const std::string& path) {
   std::ofstream f(path);
   f << "{\"selfplay\":{\"sampling_plies\":" << rec.samplingPlies
+    << ",\"move_temperature\":{\"early\":" << rec.moveTempEarly
+    << ",\"late\":" << rec.moveTempLate << ",\"halflife\":" << rec.moveTempHalflife << "}"
     << ",\"root_policy_temperature\":" << rec.rootPolicyTemperature
     << ",\"full_search_prob\":" << rec.fullSearchProb << ",\"fast_sims\":" << rec.fastSims
     << ",\"mate_nodes\":" << rec.mateNodes << ",\"probe_depth\":" << rec.probeDepth
